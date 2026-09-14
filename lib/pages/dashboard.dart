@@ -16,6 +16,7 @@ import 'see_all_products_screen.dart';
 import '../services/auth_wrapper.dart';
 import 'order_progress_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class Dashboard extends StatefulWidget {
   final String userId;
@@ -29,35 +30,33 @@ class Dashboard extends StatefulWidget {
 class _DashboardState extends State<Dashboard> {
   bool _isLoading = false;
 
-  Future<void> _logout(BuildContext context) async {
+Future<void> _logout(BuildContext context) async {
+  setState(() {
+    _isLoading = true;
+  });
+
+  try {
+    // 1. Sign out cleanly from Firebase Auth
+    await AuthService.instance.signOut();
+
+    if (!context.mounted) return;
+
+    // 2. Navigate back to the auth wrapper and clear the stack
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const AuthWrapper()),
+      (route) => false,
+    );
+  } catch (e) {
+    if (!mounted) return;
     setState(() {
-      _isLoading = true;
+      _isLoading = false;
     });
-
-    try {
-      await AuthService.instance.signOut();
-
-      try {
-        await FirebaseAuth.instance.signInAnonymously();
-      } catch (_) {}
-
-      if (!context.mounted) return;
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const AuthWrapper()),
-        (route) => false,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Logout failed: $e')),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Logout failed: $e')),
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {

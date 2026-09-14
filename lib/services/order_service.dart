@@ -39,8 +39,7 @@ class OrderService {
         .collection('user_orders')
         .doc();
 
-    // The Order ID customers use for tracking — Firestore's auto-generated
-    // document ID, captured here so it can be reused below for the email.
+
     final String orderId = orderRef.id;
 
     await orderRef.set({
@@ -63,10 +62,6 @@ class OrderService {
       'createdAt': FieldValue.serverTimestamp(),
     });
 
-    // Remove ONLY the items that were part of this order — not the whole
-    // cart. cartItems here is the list of selected/checked-out products
-    // (each with a 'productId'), so we target them by ID directly instead
-    // of reading and wiping the entire user_cart subcollection.
     final batch = _firestore.batch();
     for (final item in cartItems) {
       final String? productId = item['productId'];

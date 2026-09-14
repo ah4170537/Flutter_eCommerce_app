@@ -4,15 +4,7 @@ import 'package:flutter/material.dart';
 import '../services/review_service.dart';
 import '../theme/app_colors.dart';
 
-/// A modal bottom sheet that lets the logged-in user submit a star rating
-/// and comment for a product. Call it with:
-///
-/// showModalBottomSheet(
-///   context: context,
-///   isScrollControlled: true,
-///   backgroundColor: Colors.transparent,
-///   builder: (_) => WriteReviewSheet(productId: widget.productId),
-/// );
+
 class WriteReviewSheet extends StatefulWidget {
   final String productId;
 
@@ -72,8 +64,7 @@ class _WriteReviewSheetState extends State<WriteReviewSheet> {
       );
 
       if (!mounted) return;
-      Navigator.pop(context, true); // return true so caller knows it succeeded
-
+      Navigator.pop(context, true); 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Review submitted. Thank you!')),
       );

@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
@@ -15,17 +14,17 @@ class OrderProgressScreen extends StatefulWidget {
 
 class _OrderProgressScreenState extends State<OrderProgressScreen> {
   final TextEditingController _searchController = TextEditingController();
-  bool _isLoading = false;
-  Map<String, dynamic>? _orderData;
-  String? _foundOrderId;
-  String? _errorMessage;
+  
+  // We use this state variable to hold the currently searched/active Order ID 
+  // that the StreamBuilder should listen to.
+  String? _activeOrderId;
 
   @override
   void initState() {
     super.initState();
     if (widget.initialOrderId != null && widget.initialOrderId!.isNotEmpty) {
       _searchController.text = widget.initialOrderId!;
-      _fetchOrderDetails(widget.initialOrderId!);
+      _activeOrderId = widget.initialOrderId!.trim();
     }
   }
 
@@ -35,81 +34,15 @@ class _OrderProgressScreenState extends State<OrderProgressScreen> {
     super.dispose();
   }
 
-  Future<void> _fetchOrderDetails(String orderId) async {
-    final trimmedId = orderId.trim();
-    if (trimmedId.isEmpty) return;
+  void _handleSearch() {
+    final queryId = _searchController.text.trim();
+    if (queryId.isEmpty) return;
 
+    // Unfocus keyboard and trigger a rebuild with the new active order ID
+    FocusScope.of(context).unfocus();
     setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-      _orderData = null;
-      _foundOrderId = null;
+      _activeOrderId = queryId;
     });
-
-    try {
-      // Step 1: look up which userId this order belongs to — a plain
-      // document read, no index needed.
-      final indexDoc = await FirebaseFirestore.instance
-          .collection('order_index')
-          .doc(trimmedId)
-          .get();
-
-      if (!indexDoc.exists) {
-        setState(() {
-          _errorMessage = 'Order #$trimmedId not found.';
-          _isLoading = false;
-        });
-        return;
-      }
-
-      final String? ownerUserId = indexDoc.data()?['userId'];
-      if (ownerUserId == null || ownerUserId.isEmpty) {
-        setState(() {
-          _errorMessage = 'Order #$trimmedId not found.';
-          _isLoading = false;
-        });
-        return;
-      }
-
-      // Step 2: fetch the actual order progress directly by path — also
-      // a plain document read, no index needed.
-      final orderDoc = await FirebaseFirestore.instance
-          .collection('order_progress')
-          .doc(ownerUserId)
-          .collection('user_progress_items')
-          .doc(trimmedId)
-          .get();
-
-      if (orderDoc.exists) {
-        setState(() {
-          _orderData = orderDoc.data();
-          _foundOrderId = orderDoc.data()?['orderId'] ?? orderDoc.id;
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _errorMessage = 'Order #$trimmedId not found.';
-          _isLoading = false;
-        });
-      }
-    } on FirebaseException catch (e) {
-      debugPrint('Firestore error code: ${e.code}');
-      debugPrint('Firestore error message: ${e.message}');
-      setState(() {
-        _errorMessage = e.code == 'permission-denied'
-            ? "This order exists, but you don't have permission to view it."
-            // TEMPORARY: showing the raw error so we can diagnose it.
-            // Revert to a generic message once this is confirmed working.
-            : 'Error (${e.code}): ${e.message}';
-        _isLoading = false;
-      });
-    } catch (e) {
-      debugPrint('Non-Firebase error: $e');
-      setState(() {
-        _errorMessage = 'Something went wrong: $e';
-        _isLoading = false;
-      });
-    }
   }
 
   @override
@@ -153,7 +86,7 @@ class _OrderProgressScreenState extends State<OrderProgressScreen> {
                   SizedBox(
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: () => _fetchOrderDetails(_searchController.text),
+                      onPressed: _handleSearch,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryDark,
                         shape: RoundedRectangleBorder(
@@ -167,117 +100,171 @@ class _OrderProgressScreenState extends State<OrderProgressScreen> {
               ),
               const SizedBox(height: 16),
             ],
-            if (_isLoading)
-              const Expanded(
-                child: Center(
-                  child: CircularProgressIndicator(color: AppColors.primaryDark),
-                ),
-              )
-            else if (_errorMessage != null)
-              Expanded(
-                child: Center(
-                  child: Text(
-                    _errorMessage!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.red, fontSize: 14),
-                  ),
-                ),
-              )
-            else if (_orderData == null)
-              const Expanded(
-                child: Center(
-                  child: Text('Enter an Order ID to view progress.'),
-                ),
-              )
-            else
-              Expanded(
-                child: ListView(
-                  children: [
-                    // Order ID & Status Header
-                    Text(
-                      'Order ID: #$_foundOrderId',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: AppColors.textGrey,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Text(
-                          'Status: ',
-                          style: TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                        Text(
-                          _orderData!['currentStatus'] ?? 'Pending',
-                          style: TextStyle(
-                            color: (_orderData!['currentStatus'] ?? '').toString().toLowerCase() == 'cancelled'
-                                ? Colors.red
-                                : Colors.green,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 24),
 
-                    // Products Summary / Items if present in the document
-                    if (_orderData!.containsKey('items')) ...[
-                      const Text(
-                        'Items in Order',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Column(
-                          children: ((_orderData!['items'] as List<dynamic>? ?? [])).map((item) {
-                            final itemName = item['name'] ?? 'Product';
-                            final dynamic rawQty = item['quantity'] ?? 1;
-                            final int quantity = (rawQty is num) ? rawQty.toInt() : (int.tryParse(rawQty.toString()) ?? 1);
+            // Main Content Area handled by StreamBuilders
+            Expanded(
+              child: _activeOrderId == null || _activeOrderId!.isEmpty
+                  ? const Center(child: Text('Enter an Order ID to view progress.'))
+                  : StreamBuilder<DocumentSnapshot>(
+                      // Step 1: Listen to the order index to find out which user owns this order ID
+                      stream: FirebaseFirestore.instance
+                          .collection('order_index')
+                          .doc(_activeOrderId)
+                          .snapshots(),
+                      builder: (context, indexSnapshot) {
+                        if (indexSnapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator(color: AppColors.primaryDark));
+                        }
 
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4.0),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      '• $itemName',
-                                      style: const TextStyle(fontSize: 14, color: Colors.black87),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                        if (!indexSnapshot.hasData || !indexSnapshot.data!.exists) {
+                          return Center(
+                            child: Text(
+                              'Order #$_activeOrderId not found.',
+                              style: const TextStyle(color: Colors.red, fontSize: 14),
+                              textAlign: TextAlign.center,
+                            ),
+                          );
+                        }
+
+                        final indexData = indexSnapshot.data!.data() as Map<String, dynamic>?;
+                        final String? ownerUserId = indexData?['userId'];
+
+                        if (ownerUserId == null || ownerUserId.isEmpty) {
+                          return Center(
+                            child: Text(
+                              'Order #$_activeOrderId not found.',
+                              style: const TextStyle(color: Colors.red, fontSize: 14),
+                              textAlign: TextAlign.center,
+                            ),
+                          );
+                        }
+
+                        // Step 2: Once we have the ownerUserId, listen to the actual progress document in real-time
+                        return StreamBuilder<DocumentSnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection('order_progress')
+                              .doc(ownerUserId)
+                              .collection('user_progress_items')
+                              .doc(_activeOrderId)
+                              .snapshots(),
+                          builder: (context, orderSnapshot) {
+                            if (orderSnapshot.connectionState == ConnectionState.waiting) {
+                              return const Center(child: CircularProgressIndicator(color: AppColors.primaryDark));
+                            }
+
+                            if (!orderSnapshot.hasData || !orderSnapshot.data!.exists) {
+                              return Center(
+                                child: Text(
+                                  'Order #$_activeOrderId not found.',
+                                  style: const TextStyle(color: Colors.red, fontSize: 14),
+                                  textAlign: TextAlign.center,
+                                ),
+                              );
+                            }
+
+                            final orderData = orderSnapshot.data!.data() as Map<String, dynamic>?;
+                            if (orderData == null) {
+                              return const Center(child: Text('No data available for this order.'));
+                            }
+
+                            final foundOrderId = orderData['orderId'] ?? orderSnapshot.data!.id;
+                            final currentStatus = orderData['currentStatus'] ?? 'Pending';
+                            final items = orderData['items'] as List<dynamic>? ?? [];
+                            final progressSteps = orderData['progressSteps'] as List<dynamic>? ?? [];
+
+                            return ListView(
+                              children: [
+                                // Order ID & Status Header
+                                Text(
+                                  'Order ID: #$foundOrderId',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: AppColors.textGrey,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    const Text(
+                                      'Status: ',
+                                      style: TextStyle(fontWeight: FontWeight.w500),
+                                    ),
+                                    Text(
+                                      currentStatus,
+                                      style: TextStyle(
+                                        color: currentStatus.toString().toLowerCase() == 'cancelled'
+                                            ? Colors.red
+                                            : Colors.green,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const Divider(height: 24),
+
+                                // Products Summary / Items if present
+                                if (items.isNotEmpty) ...[
+                                  const Text(
+                                    'Items in Order',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade50,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: Colors.grey.shade200),
+                                    ),
+                                    child: Column(
+                                      children: items.map((item) {
+                                        final itemName = item['name'] ?? 'Product';
+                                        final dynamic rawQty = item['quantity'] ?? 1;
+                                        final int quantity = (rawQty is num)
+                                            ? rawQty.toInt()
+                                            : (int.tryParse(rawQty.toString()) ?? 1);
+
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  '• $itemName',
+                                                  style: const TextStyle(fontSize: 14, color: Colors.black87),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              Text(
+                                                'Qty: $quantity',
+                                                style: const TextStyle(fontSize: 14, color: AppColors.textGrey),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }).toList(),
                                     ),
                                   ),
-                                  Text(
-                                    'Qty: $quantity',
-                                    style: const TextStyle(fontSize: 14, color: AppColors.textGrey),
-                                  ),
+                                  const Divider(height: 24),
                                 ],
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                      const Divider(height: 24),
-                    ],
 
-                    // Tracking Timeline (mapped to 'progressSteps' from seeder)
-                    const Text(
-                      'Order Progress Timeline',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                // Tracking Timeline
+                                const Text(
+                                  'Order Progress Timeline',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                ),
+                                const SizedBox(height: 12),
+                                _buildTrackingTimeline(progressSteps),
+                              ],
+                            );
+                          },
+                        );
+                      },
                     ),
-                    const SizedBox(height: 12),
-                    _buildTrackingTimeline((_orderData!['progressSteps'] as List<dynamic>? ?? [])),
-                  ],
-                ),
-              ),
+            ),
           ],
         ),
       ),

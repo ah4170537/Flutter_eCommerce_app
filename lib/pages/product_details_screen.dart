@@ -9,7 +9,6 @@ import '../services/cart_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/quantity_selector.dart';
-import 'cart_screen.dart';
 import 'recommended_products_section.dart';
 import 'product_image_slider.dart';
 import '../widgets/write_review_sheet.dart';

@@ -2,10 +2,9 @@ import 'package:authentication_module/pages/main_navigation_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import '../services/order_service.dart';
 import '../theme/app_colors.dart';
-import 'main_navigation_screen.dart';
-
 
 class CheckoutScreen extends StatefulWidget {
   final String userId;
@@ -41,12 +40,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   String _selectedDeliveryMode = 'Cash on Delivery';
   bool _isLoading = false;
-  bool _isSavingInfo = true; // Default true rakha hai taake info save ho jaye
+  bool _isSavingInfo = true;
 
   @override
   void initState() {
     super.initState();
-    _loadSavedShippingInfo(); // Screen khulte hi saved info fetch karna
+    _loadSavedShippingInfo();
   }
 
   Future<void> _loadSavedShippingInfo() async {
@@ -61,7 +60,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final data = doc.data()!;
       final shipping = data['shippingAddress'] as Map<String, dynamic>?;
 
-     
       final User? authUser = FirebaseAuth.instance.currentUser;
 
       if (shipping == null) {
@@ -91,18 +89,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Future<void> _saveShippingInfoToDatabase() async {
     if (!_isSavingInfo) return;
     try {
-      await FirebaseFirestore.instance.collection('users').doc(widget.userId).set({
-        'shippingAddress': {
-          'firstName': _firstNameController.text.trim(),
-          'lastName': _lastNameController.text.trim(),
-          'email': _emailController.text.trim(),
-          'phone': _phoneController.text.trim(),
-          'secondaryPhone': _secondaryPhoneController.text.trim(),
-          'postalCode': _postalCodeController.text.trim(),
-          'address': _addressController.text.trim(),
-          'city': _cityController.text.trim(),
-        }
-      }, SetOptions(merge: true));
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .set({
+            'shippingAddress': {
+              'firstName': _firstNameController.text.trim(),
+              'lastName': _lastNameController.text.trim(),
+              'email': _emailController.text.trim(),
+              'phone': _phoneController.text.trim(),
+              'secondaryPhone': _secondaryPhoneController.text.trim(),
+              'postalCode': _postalCodeController.text.trim(),
+              'address': _addressController.text.trim(),
+              'city': _cityController.text.trim(),
+            },
+          }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('Error saving shipping info: $e');
     }
@@ -114,7 +115,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     setState(() => _isLoading = true);
 
     try {
-    
       await _saveShippingInfoToDatabase();
 
       await OrderService.instance.placeOrder(
@@ -152,8 +152,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (context) =>
-              MainNavigationScreen(userId: FirebaseAuth.instance.currentUser?.uid ?? ''),
+          builder: (context) => MainNavigationScreen(
+            userId: FirebaseAuth.instance.currentUser?.uid ?? '',
+          ),
         ),
         (route) => false,
       );
@@ -387,7 +388,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       contentPadding: EdgeInsets.zero,
                       title: const Text(
                         'Save this information for future orders',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                       value: _isSavingInfo,
                       activeColor: AppColors.primaryDark,

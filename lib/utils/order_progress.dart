@@ -61,7 +61,7 @@ Future<void> seedSingleOrderProgress() async {
             'timestamp': Timestamp.now(),
           },
           
-        
+          
         ],
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));

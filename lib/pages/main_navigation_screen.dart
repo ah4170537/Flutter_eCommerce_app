@@ -9,12 +9,12 @@ import 'profile_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   final String userId;
-  final int initialIndex; // Add this
+  final int initialIndex; 
 
   const MainNavigationScreen({
     super.key, 
     required this.userId,
-    this.initialIndex = 0, // Default to Home/Dashboard
+    this.initialIndex = 0, 
   });
 
   @override
@@ -28,7 +28,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex; // Set it here
+    _currentIndex = widget.initialIndex; 
     _screens = [
       Dashboard(userId: widget.userId),
       CartScreen(userId: widget.userId),
@@ -92,14 +92,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                       text: 'Home',
                     ),
                     GButton(
-                      // Use a custom icon widget with a Stack to overlay the badge counter
-                      icon: Icons.shopping_cart_rounded, // Fallback icon
+                    
+                      icon: Icons.shopping_cart_rounded, 
                       leading: Stack(
                         clipBehavior: Clip.none,
                         children: [
                           const Icon(
                             Icons.shopping_cart_rounded,
-                            color: Colors.grey, // Adjust to match your unselected/active color states if needed
+                            color: Colors.grey, 
                             size: 24,
                           ),
                           if (cartCount > 0)

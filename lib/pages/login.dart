@@ -37,6 +37,13 @@ class _LoginState extends State<Login> {
     super.dispose();
   }
 
+ void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   Future<void> _handleLogin() async {
     final emailError = Validators.emailError(_emailController.text);
     if (emailError != null) {
@@ -48,19 +55,24 @@ class _LoginState extends State<Login> {
       return;
     }
 
+    // 1. Capture the guest user ID *immediately* before touching auth state
+    final User? preLoginUser = FirebaseAuth.instance.currentUser;
+    final bool wasGuest = preLoginUser?.isAnonymous ?? false;
+    final String? guestUserId = wasGuest ? preLoginUser?.uid : null;
+
+    // 2. Fetch and clear guest cart items while the guest ID is guaranteed active
+    List<Map<String, dynamic>> guestCartItems = [];
+    if (guestUserId != null && guestUserId.isNotEmpty) {
+      try {
+        guestCartItems = await _cartMergeHelper.captureAndClearGuestCart(guestUserId);
+      } catch (e) {
+        debugPrint('Error capturing guest cart: $e');
+      }
+    }
+
     setState(() => _isLoading = true);
     try {
-
-      final User? preLoginUser = FirebaseAuth.instance.currentUser;
-      final bool wasGuest = preLoginUser?.isAnonymous ?? false;
-      final String? guestUserId = wasGuest ? preLoginUser?.uid : null;
-
-      List<Map<String, dynamic>> guestCartItems = [];
-      if (guestUserId != null && guestUserId.isNotEmpty) {
-        guestCartItems =
-            await _cartMergeHelper.captureAndClearGuestCart(guestUserId);
-      }
-
+      // 3. Now perform the login
       final UserCredential userCredential = await AuthService.instance.signIn(
         email: _emailController.text,
         password: _passwordController.text,
@@ -69,7 +81,8 @@ class _LoginState extends State<Login> {
 
       final String userId = userCredential.user?.uid ?? '';
 
-      if (guestCartItems.isNotEmpty) {
+      // 4. Merge captured items into the newly logged-in user's cart
+      if (guestCartItems.isNotEmpty && userId.isNotEmpty) {
         await _cartMergeHelper.mergeItemsIntoUserCart(
           newUserId: userId,
           guestItems: guestCartItems,
@@ -90,11 +103,6 @@ class _LoginState extends State<Login> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
