@@ -354,67 +354,78 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                     : () async {
                         _isAddingToCart.value = true;
 
-                        final User? user = FirebaseAuth.instance.currentUser;
-                        final String userId = user?.uid ?? '';
+                        try {
+                          final User? user = FirebaseAuth.instance.currentUser;
+                          final String userId = user?.uid ?? '';
 
-                        if (userId.isEmpty) {
-                          _isAddingToCart.value = false;
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Error: User not logged in'),
-                              ),
-                            );
+                          if (userId.isEmpty) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Error: User not logged in'),
+                                ),
+                              );
+                            }
+                            return;
                           }
-                          return;
-                        }
 
-                        final docSnapshot = await FirebaseFirestore.instance
-                            .collection(AppStrings.productsCollection)
-                            .doc(widget.productId)
-                            .get();
+                          final docSnapshot = await FirebaseFirestore.instance
+                              .collection(AppStrings.productsCollection)
+                              .doc(widget.productId)
+                              .get();
 
-                        if (!docSnapshot.exists) {
+                          if (!docSnapshot.exists) {
+                            return;
+                          }
+
+                          final data =
+                              docSnapshot.data() as Map<String, dynamic>;
+                          final List<dynamic> imageUrlsList =
+                              data['imageUrls'] ?? [];
+
+                          final List<String> effectiveImages =
+                              imageUrlsList.isNotEmpty
+                              ? imageUrlsList.map((e) => e.toString()).toList()
+                              : [
+                                  data[AppStrings.imageUrlField]?.toString() ??
+                                      '',
+                                ].where((s) => s.isNotEmpty).toList();
+
+                          final String cartImageUrl = effectiveImages.isNotEmpty
+                              ? effectiveImages[0]
+                              : '';
+
+                          await _cartService.addToCart(
+                            userId: userId,
+                            productId: widget.productId,
+                            name:
+                                data[AppStrings.nameField] ??
+                                AppStrings.defaultProductName,
+                            price: data[AppStrings.priceField] ?? 0,
+                            imageUrl: cartImageUrl,
+                            quantity: _selectedQuantity,
+                          );
+
+                          if (!mounted) return;
+
+                          // Show success snackbar instead of pushing CartScreen
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Added to cart successfully!'),
+                              duration: Duration(seconds: 2),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed to add to cart: $e'),
+                            ),
+                          );
+                        } finally {
                           _isAddingToCart.value = false;
-                          return;
                         }
-
-                        final data = docSnapshot.data() as Map<String, dynamic>;
-                        final List<dynamic> imageUrlsList =
-                            data['imageUrls'] ?? [];
-
-                        final List<String> effectiveImages =
-                            imageUrlsList.isNotEmpty
-                            ? imageUrlsList.map((e) => e.toString()).toList()
-                            : [data[AppStrings.imageUrlField]?.toString() ?? '']
-                                  .where((s) => s.isNotEmpty)
-                                  .toList();
-
-                        final String cartImageUrl = effectiveImages.isNotEmpty
-                            ? effectiveImages[0]
-                            : '';
-
-                        await _cartService.addToCart(
-                          userId: userId,
-                          productId: widget.productId,
-                          name:
-                              data[AppStrings.nameField] ??
-                              AppStrings.defaultProductName,
-                          price: data[AppStrings.priceField] ?? 0,
-                          imageUrl: cartImageUrl,
-                          quantity: _selectedQuantity,
-                        );
-
-                        if (!mounted) return;
-
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => CartScreen(userId: userId),
-                          ),
-                        );
-
-                        _isAddingToCart.value = false;
                       },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryDark,

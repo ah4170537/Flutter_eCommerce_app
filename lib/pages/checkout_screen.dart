@@ -1,9 +1,11 @@
+import 'package:authentication_module/pages/main_navigation_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/order_service.dart';
 import '../theme/app_colors.dart';
-import 'dashboard.dart';
+import 'main_navigation_screen.dart';
+
 
 class CheckoutScreen extends StatefulWidget {
   final String userId;
@@ -47,10 +49,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _loadSavedShippingInfo(); // Screen khulte hi saved info fetch karna
   }
 
-  // Firestore se saved shipping info lane ka function.
-  // `shippingAddress` is the single source of truth — it's populated
-  // right at registration (from the popup) and kept up to date by the
-  // "Save this information" checkbox on every checkout after that.
   Future<void> _loadSavedShippingInfo() async {
     try {
       final doc = await FirebaseFirestore.instance
@@ -63,9 +61,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final data = doc.data()!;
       final shipping = data['shippingAddress'] as Map<String, dynamic>?;
 
-      // Email falls back to the account's auth email if shippingAddress
-      // doesn't have one yet (e.g. a guest checked out once before
-      // registering, so shippingAddress predates having a real email).
+     
       final User? authUser = FirebaseAuth.instance.currentUser;
 
       if (shipping == null) {
@@ -118,7 +114,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Order place karne se pehle info save karlein agar user ne option select kiya hai
+    
       await _saveShippingInfoToDatabase();
 
       await OrderService.instance.placeOrder(
@@ -157,7 +153,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         context,
         MaterialPageRoute(
           builder: (context) =>
-              Dashboard(userId: FirebaseAuth.instance.currentUser?.uid ?? ''),
+              MainNavigationScreen(userId: FirebaseAuth.instance.currentUser?.uid ?? ''),
         ),
         (route) => false,
       );

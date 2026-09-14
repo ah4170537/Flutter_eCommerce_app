@@ -3,9 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
-import 'cart_screen.dart';
+
 import '../widgets/cancel_order_button.dart';
 import "order_progress_screen.dart";
+import 'main_navigation_screen.dart';
 
 class OrderDetailScreen extends StatelessWidget {
   final String orderId;
@@ -251,7 +252,6 @@ class OrderDetailScreen extends StatelessWidget {
                         MaterialPageRoute(
                           builder: (context) => OrderProgressScreen(
                             initialOrderId: orderId, // Changed from widget.orderId to orderId
-                           
                           ),
                         ),
                       );
@@ -354,14 +354,16 @@ class OrderDetailScreen extends StatelessWidget {
                         }
 
                         if (!context.mounted) return;
-                        Navigator.pop(context);
 
-                        Navigator.push(
+                        Navigator.pushAndRemoveUntil(
                           context,
                           MaterialPageRoute(
-                            builder: (context) =>
-                                CartScreen(userId: effectiveUserId),
+                            builder: (context) => MainNavigationScreen(
+                              userId: userId ?? '',
+                              initialIndex: 1,
+                            ),
                           ),
+                          (route) => false,
                         );
                       } catch (e) {
                         if (!context.mounted) return;

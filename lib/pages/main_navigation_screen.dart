@@ -9,20 +9,26 @@ import 'profile_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   final String userId;
+  final int initialIndex; // Add this
 
-  const MainNavigationScreen({super.key, required this.userId});
+  const MainNavigationScreen({
+    super.key, 
+    required this.userId,
+    this.initialIndex = 0, // Default to Home/Dashboard
+  });
 
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex;
   late final List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex; // Set it here
     _screens = [
       Dashboard(userId: widget.userId),
       CartScreen(userId: widget.userId),
@@ -30,6 +36,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       ProfileScreen(userId: widget.userId),
     ];
   }
+
+
 
   @override
   Widget build(BuildContext context) {
