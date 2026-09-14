@@ -14,7 +14,7 @@ import '../widgets/social_icons_row.dart';
 import '../widgets/auth_footer_link.dart';
 import '../widgets/auth_card.dart';
 import 'register.dart';
-import 'dashboard.dart';
+import 'main_navigation_screen.dart';
 import '../services/cart_merge_helper.dart';
 
 class Login extends StatefulWidget {
@@ -50,16 +50,11 @@ class _LoginState extends State<Login> {
 
     setState(() => _isLoading = true);
     try {
-      // Capture the guest's UID BEFORE signing in — once signIn() succeeds,
-      // FirebaseAuth.instance.currentUser switches to the new account and
-      // the anonymous UID is no longer reachable.
+
       final User? preLoginUser = FirebaseAuth.instance.currentUser;
       final bool wasGuest = preLoginUser?.isAnonymous ?? false;
       final String? guestUserId = wasGuest ? preLoginUser?.uid : null;
 
-      // PHASE 1: capture + clear the guest cart WHILE STILL authenticated
-      // as the guest — Security Rules only allow a user to touch their
-      // own cart, so this must happen before the session switches.
       List<Map<String, dynamic>> guestCartItems = [];
       if (guestUserId != null && guestUserId.isNotEmpty) {
         guestCartItems =
@@ -74,8 +69,6 @@ class _LoginState extends State<Login> {
 
       final String userId = userCredential.user?.uid ?? '';
 
-      // PHASE 2: now authenticated as the real user — write the captured
-      // guest items into their own cart.
       if (guestCartItems.isNotEmpty) {
         await _cartMergeHelper.mergeItemsIntoUserCart(
           newUserId: userId,
@@ -87,7 +80,7 @@ class _LoginState extends State<Login> {
 
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => Dashboard(userId: userId)),
+        MaterialPageRoute(builder: (_) => MainNavigationScreen(userId: userId)),
         (route) => false,
       );
     } on FirebaseAuthException catch (e) {

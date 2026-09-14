@@ -15,7 +15,7 @@ import '../widgets/auth_footer_link.dart';
 import '../widgets/auth_card.dart';
 import '../widgets/registration_details_dialog.dart';
 import 'login.dart';
-import 'dashboard.dart';
+import 'main_navigation_screen.dart';
 
 class Register extends StatefulWidget {
   const Register({super.key});
@@ -61,27 +61,22 @@ class _RegisterState extends State<Register> {
       return;
     }
 
-    // All base fields are valid — now collect the additional profile
-    // details via the popup before actually creating the account.
+    
     final RegistrationDetails? details =
         await showRegistrationDetailsDialog(context);
 
-    // User cancelled the popup — don't proceed with registration.
+
     if (details == null) return;
 
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      // Capture the guest's UID BEFORE creating the new account — once
-      // signUp() succeeds, FirebaseAuth.instance.currentUser switches to
-      // the new account and the anonymous UID is no longer reachable.
+   
       final User? preRegisterUser = FirebaseAuth.instance.currentUser;
       final bool wasGuest = preRegisterUser?.isAnonymous ?? false;
       final String? guestUserId = wasGuest ? preRegisterUser?.uid : null;
 
-      // PHASE 1: capture + clear the guest cart WHILE STILL authenticated
-      // as the guest — Security Rules only allow a user to touch their
-      // own cart, so this must happen before the session switches.
+
       List<Map<String, dynamic>> guestCartItems = [];
       if (guestUserId != null && guestUserId.isNotEmpty) {
         guestCartItems =
@@ -104,8 +99,7 @@ class _RegisterState extends State<Register> {
 
       final String userId = credential.user?.uid ?? '';
 
-      // PHASE 2: now authenticated as the real user — write the captured
-      // guest items into their own (brand-new) cart.
+    
       if (guestCartItems.isNotEmpty) {
         await _cartMergeHelper.mergeItemsIntoUserCart(
           newUserId: userId,
@@ -117,7 +111,7 @@ class _RegisterState extends State<Register> {
 
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => Dashboard(userId: userId)),
+        MaterialPageRoute(builder: (_) => MainNavigationScreen(userId: userId)),
         (route) => false,
       );
     } on FirebaseAuthException catch (e) {

@@ -19,11 +19,9 @@ void main() async {
 }
 
 Future<void> seedSingleOrderProgress() async {
-  const String userId = 'nnL1qlEQ6ESdnZnwSvVf6H7LWjI3';
-  const String orderId = 'XuBKOnDHy516rp3iteel';
+  const String userId = 'rdI5Y9LZubeioOBfaTCimQSkQDP2';
+  const String orderId = 'XJhuwJVxu9tnzIspYPje';
 
-  // Set this to true if this particular order was placed as a guest
-  // (anonymous) session. Defaulted to false here — change if needed.
   const bool isGuestOrder = false;
 
   await FirebaseFirestore.instance
@@ -62,11 +60,8 @@ Future<void> seedSingleOrderProgress() async {
             'subtitle': 'Package arrived at the local delivery hub near you.',
             'timestamp': Timestamp.now(),
           },
-          {
-            'title': 'Out for Delivery',
-            'subtitle': 'Rider is on the way to your address.',
-            'timestamp': Timestamp.now(),
-          },
+          
+        
         ],
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));

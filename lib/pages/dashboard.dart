@@ -11,13 +11,14 @@ import '../theme/app_colors.dart';
 import '../theme/app_gradients.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/product_sections.dart';
-import 'cart_screen.dart';
+
 import 'login.dart';
 import 'product_details_screen.dart';
 import 'see_all_products_screen.dart';
 import '../services/auth_wrapper.dart';
-
+import 'order_progress_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+
 
 class Dashboard extends StatelessWidget {
   final String userId; // Add this
@@ -62,6 +63,7 @@ class Dashboard extends StatelessWidget {
       backgroundColor: AppColors.white,
       drawer: Drawer(
         child: Material(
+          
           color: AppColors.white,
           child: Column(
             children: [
@@ -137,7 +139,7 @@ class Dashboard extends StatelessWidget {
                         color: AppColors.primaryDark,
                       ),
                       title: const Text(
-                        'My Orders',
+                        'Order Progress',
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           color: AppColors.textDark,
@@ -148,30 +150,14 @@ class Dashboard extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => OrdersScreen(
-                              userId: currentUserId,
+                            builder: (_) => OrderProgressScreen(
+                              
                             ), // Use currentUserId here
                           ),
                         );
                       },
                     ),
-                    ListTile(
-                      leading: const Icon(
-                        Icons.person_outline_rounded,
-                        color: AppColors.primaryDark,
-                      ),
-                      title: const Text(
-                        'Profile',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textDark,
-                        ),
-                      ),
-                      onTap: () {
-                        Navigator.pop(context);
-                        // TODO: Navigate to ProfileScreen
-                      },
-                    ),
+                    
                     ListTile(
                       leading: const Icon(
                         Icons.location_on_outlined,
@@ -363,80 +349,7 @@ class Dashboard extends StatelessWidget {
                                 ),
                               ],
                             ),
-                            Row(
-                              children: [
-                                // Cart Icon with Real-time Badge Count
-                                StreamBuilder<QuerySnapshot>(
-                                  stream: FirebaseFirestore.instance
-                                      .collection('cart')
-                                      .doc(currentUserId)
-                                      .collection('user_cart')
-                                      .snapshots(),
-                                  builder: (context, snapshot) {
-                                    int cartCount = 0;
-                                    if (snapshot.hasData) {
-                                      cartCount = snapshot.data!.docs.length;
-                                    }
-
-                                    return Stack(
-                                      children: [
-                                        IconButton(
-                                          onPressed: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) => CartScreen(
-                                                  userId: currentUserId,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                          icon: Container(
-                                            padding: const EdgeInsets.all(8),
-                                            decoration: BoxDecoration(
-                                              color: Colors.white.withValues(
-                                                alpha: 0.2,
-                                              ),
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: const Icon(
-                                              Icons.shopping_cart_outlined,
-                                              color: AppColors.white,
-                                              size: 20,
-                                            ),
-                                          ),
-                                        ),
-                                        if (cartCount > 0)
-                                          Positioned(
-                                            right: 6,
-                                            top: 6,
-                                            child: Container(
-                                              padding: const EdgeInsets.all(4),
-                                              decoration: const BoxDecoration(
-                                                color: Colors.red,
-                                                shape: BoxShape.circle,
-                                              ),
-                                              constraints: const BoxConstraints(
-                                                minWidth: 16,
-                                                minHeight: 16,
-                                              ),
-                                              child: Text(
-                                                '$cartCount',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                                textAlign: TextAlign.center,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
+                          
                           ],
                         ),
                       ],
@@ -707,8 +620,13 @@ class Dashboard extends StatelessWidget {
               const SizedBox(height: 24),
             ],
           ),
+          
         ),
+      
       ),
+     
+       
+      
     );
   }
 }
