@@ -2,9 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../services/cart_service.dart'; // CartService ko import karein
 import '../theme/app_colors.dart';
-import 'cart_screen.dart'; // CartScreen ka sahi import path yahan dein
+import 'cart_screen.dart';
+import '../widgets/cancel_order_button.dart';
+import "order_progress_screen.dart";
 
 class OrderDetailScreen extends StatelessWidget {
   final String orderId;
@@ -18,15 +19,13 @@ class OrderDetailScreen extends StatelessWidget {
         ? userId!
         : (FirebaseAuth.instance.currentUser?.uid ?? '');
 
-    final CartService cartService = CartService();
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Order Details'),
         backgroundColor: AppColors.white,
         foregroundColor: AppColors.primaryDark,
-        elevation: 0,
+        scrolledUnderElevation: 0,
       ),
       body: FutureBuilder<DocumentSnapshot>(
         future: FirebaseFirestore.instance
@@ -63,19 +62,45 @@ class OrderDetailScreen extends StatelessWidget {
 
           final status = orderData['status'] ?? 'Pending';
 
+          // Extract and format the date/timestamp
+          final dynamic rawTimestamp =
+              orderData['createdAt'] ??
+              orderData['timestamp'] ??
+              orderData['date'];
+          String formattedDate = '';
+          if (rawTimestamp != null && rawTimestamp is Timestamp) {
+            DateTime dt = rawTimestamp.toDate();
+            String hour = dt.hour.toString().padLeft(2, '0');
+            String minute = dt.minute.toString().padLeft(2, '0');
+            formattedDate = '${dt.day}-${dt.month}-${dt.year}  $hour:$minute';
+          }
+
           return Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Order ID: #${orderId.toUpperCase()}',
+                  'Order ID: #$orderId',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                     color: AppColors.textGrey,
                   ),
                 ),
+
+                // Date & Time Display
+                if (formattedDate.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Date: $formattedDate',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textGrey,
+                    ),
+                  ),
+                ],
+
                 const SizedBox(height: 6),
                 Row(
                   children: [
@@ -85,8 +110,10 @@ class OrderDetailScreen extends StatelessWidget {
                     ),
                     Text(
                       status,
-                      style: const TextStyle(
-                        color: Colors.green,
+                      style: TextStyle(
+                        color: status == 'cancelled'
+                            ? Colors.red
+                            : Colors.green,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -198,6 +225,60 @@ class OrderDetailScreen extends StatelessWidget {
                     },
                   ),
                 ),
+
+                const SizedBox(height: 12),
+                // Cancel Order — visible for 30 minutes after order creation
+                // (server-time enforced via Firestore Security Rules).
+                if (orderData['createdAt'] is Timestamp)
+                  CancelOrderButton(
+                    userId: effectiveUserId,
+                    orderId: orderId,
+                    createdAt: orderData['createdAt'] as Timestamp,
+                    currentStatus: status,
+                    onCancelled: () {
+                      Navigator.pop(context);
+                    },
+                  ),
+
+                // --- Add this button right above the Reorder button ---
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => OrderProgressScreen(
+                            initialOrderId: orderId, // Changed from widget.orderId to orderId
+                           
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.local_shipping_outlined,
+                      color: AppColors.primaryDark,
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.primaryDark),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    label: const Text(
+                      // Changed from child: to label:
+                      'View Order Progress',
+                      style: TextStyle(
+                        color: AppColors.primaryDark,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
                 const Divider(),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -229,7 +310,6 @@ class OrderDetailScreen extends StatelessWidget {
                   height: 50,
                   child: ElevatedButton(
                     onPressed: () async {
-                      // Loading indicator dikhayein
                       showDialog(
                         context: context,
                         barrierDismissible: false,
@@ -267,7 +347,6 @@ class OrderDetailScreen extends StatelessWidget {
                                 : docRef.id,
                             'name': item['name'] ?? 'Product',
                             'price': item['price'] ?? 0,
-                            // FieldValue.increment purani quantity mein reorder wali quantity add kar dega (Misal: 1 + 2 = 3)
                             'quantity': FieldValue.increment(itemQty),
                             'imageUrl': item['imageUrl'] ?? '',
                             'updatedAt': FieldValue.serverTimestamp(),
@@ -275,9 +354,8 @@ class OrderDetailScreen extends StatelessWidget {
                         }
 
                         if (!context.mounted) return;
-                        Navigator.pop(context); // Loading dialog band karein
+                        Navigator.pop(context);
 
-                        // CartScreen par navigate kar dein
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -287,7 +365,7 @@ class OrderDetailScreen extends StatelessWidget {
                         );
                       } catch (e) {
                         if (!context.mounted) return;
-                        Navigator.pop(context); // Loading dialog band karein
+                        Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text('Failed to reorder: $e')),
                         );

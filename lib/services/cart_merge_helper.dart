@@ -1,49 +1,86 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// Merges every item from the guest's cart (`cart/{guestUserId}/user_cart`)
-/// into the newly logged-in user's cart (`cart/{newUserId}/user_cart`).
-/// If the same product exists in both, quantities are summed instead of
-/// overwritten. After merging, the guest's cart documents are deleted.
+/// Moves a guest's cart into a newly logged-in/registered user's cart.
 ///
-/// You can either keep this as its own small service (as below) or move
-/// the `mergeGuestCartIntoUser` method directly into your existing
-/// CartService class — whichever fits your project structure better.
+/// IMPORTANT — this must be done in two phases because Firestore Security
+/// Rules only allow a user to read/write their OWN cart
+/// (`cart/{uid}/user_cart`, checked against `request.auth.uid`). The
+/// moment `signIn()`/`signUp()` succeeds, the Firebase session switches
+/// from the guest's anonymous uid to the new account's uid — so trying to
+/// read/delete the guest's cart AFTER that point gets rejected as
+/// `permission-denied`, since the app is no longer authenticated as the
+/// guest.
+///
+/// The fix: capture and clear the guest cart BEFORE calling signIn/signUp
+/// (while still authenticated as the guest), then write those items into
+/// the new account's cart AFTER signing in (while authenticated as the
+/// new user, writing to their own cart).
 class CartMergeHelper {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  Future<void> mergeGuestCartIntoUser({
-    required String guestUserId,
-    required String newUserId,
-  }) async {
-    // Nothing to merge if it's the same id (shouldn't normally happen,
-    // but guards against accidental no-op calls).
-    if (guestUserId == newUserId || guestUserId.isEmpty) return;
+  /// PHASE 1 — call this BEFORE signIn()/signUp(), while still
+  /// authenticated as the guest.
+  ///
+  /// Reads every item from the guest's cart, deletes them (guest is
+  /// allowed to delete their own cart), and returns the item data so it
+  /// can be written into the new account's cart afterward.
+  Future<List<Map<String, dynamic>>> captureAndClearGuestCart(
+    String guestUserId,
+  ) async {
+    if (guestUserId.isEmpty) return [];
 
     final guestCartRef = _db
         .collection('cart')
         .doc(guestUserId)
         .collection('user_cart');
 
+    final guestCartSnapshot = await guestCartRef.get();
+
+    if (guestCartSnapshot.docs.isEmpty) return [];
+
+    final List<Map<String, dynamic>> capturedItems = [];
+    final batch = _db.batch();
+
+    for (final guestDoc in guestCartSnapshot.docs) {
+      // Keep the productId alongside the rest of the item's data so
+      // Phase 2 knows which document to write to in the new cart.
+      capturedItems.add({
+        'productId': guestDoc.id,
+        ...guestDoc.data(),
+      });
+      batch.delete(guestCartRef.doc(guestDoc.id));
+    }
+
+    await batch.commit();
+    return capturedItems;
+  }
+
+  /// PHASE 2 — call this AFTER signIn()/signUp() succeeds, now
+  /// authenticated as the new (real) user.
+  ///
+  /// Writes the previously-captured guest items into the new user's own
+  /// cart. If a product already exists there, quantities are summed
+  /// instead of overwritten.
+  Future<void> mergeItemsIntoUserCart({
+    required String newUserId,
+    required List<Map<String, dynamic>> guestItems,
+  }) async {
+    if (guestItems.isEmpty || newUserId.isEmpty) return;
+
     final newUserCartRef = _db
         .collection('cart')
         .doc(newUserId)
         .collection('user_cart');
 
-    final guestCartSnapshot = await guestCartRef.get();
-
-    if (guestCartSnapshot.docs.isEmpty) return; // guest cart was empty
-
     final batch = _db.batch();
 
-    for (final guestDoc in guestCartSnapshot.docs) {
-      final productId = guestDoc.id;
-      final guestData = guestDoc.data();
-      final num guestQuantity = guestData['quantity'] ?? 1;
+    for (final item in guestItems) {
+      final String productId = item['productId'];
+      final num guestQuantity = item['quantity'] ?? 1;
 
       final existingDoc = await newUserCartRef.doc(productId).get();
 
       if (existingDoc.exists) {
-        // Product already in the logged-in user's cart — sum quantities.
         final existingData = existingDoc.data() as Map<String, dynamic>;
         final num existingQuantity = existingData['quantity'] ?? 1;
 
@@ -51,12 +88,10 @@ class CartMergeHelper {
           'quantity': existingQuantity + guestQuantity,
         });
       } else {
-        // Product not in the user's cart yet — copy it over as-is.
-        batch.set(newUserCartRef.doc(productId), guestData);
+        final Map<String, dynamic> itemData = Map.from(item)
+          ..remove('productId'); // don't store productId as a field too
+        batch.set(newUserCartRef.doc(productId), itemData);
       }
-
-      // Remove it from the guest cart regardless.
-      batch.delete(guestCartRef.doc(productId));
     }
 
     await batch.commit();

@@ -59,6 +59,7 @@ class OrderService {
       'subtotal': subtotal,
       'deliveryFee': deliveryFee,
       'total': total,
+      'status': 'placed',
       'createdAt': FieldValue.serverTimestamp(),
     });
 
@@ -121,5 +122,21 @@ class OrderService {
     if (response.statusCode != 200) {
       throw Exception('Email delivery failed: ${response.body}');
     }
+  }
+
+  Future<void> cancelOrder({
+    required String userId,
+    required String orderId,
+  }) async {
+    final orderRef = _firestore
+        .collection('orders')
+        .doc(userId)
+        .collection('user_orders')
+        .doc(orderId);
+
+    await orderRef.update({
+      'status': 'cancelled',
+      'cancelledAt': FieldValue.serverTimestamp(),
+    });
   }
 }

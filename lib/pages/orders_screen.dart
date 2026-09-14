@@ -11,7 +11,6 @@ class OrdersScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Fallback to current Firebase user if the passed userId is empty
     final String effectiveUserId = userId.isNotEmpty 
         ? userId 
         : (FirebaseAuth.instance.currentUser?.uid ?? '');
@@ -31,20 +30,20 @@ class OrdersScreen extends StatelessWidget {
     }
 
     return Scaffold(
-       backgroundColor: Colors.white,
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('My Orders'),
         backgroundColor: AppColors.white,
         foregroundColor: AppColors.primaryDark,
-        elevation: 0,
+        scrolledUnderElevation: 0,
       ),
       body: StreamBuilder<QuerySnapshot>(
-        // Removed .orderBy() to prevent index errors; you can add it back later once the index is created
         stream: FirebaseFirestore.instance
-    .collection('orders')
-    .doc(effectiveUserId)
-    .collection('user_orders')
-    .snapshots(),
+            .collection('orders')
+            .doc(effectiveUserId)
+            .collection('user_orders')
+            .orderBy('createdAt', descending: true)
+            .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
@@ -80,46 +79,153 @@ class OrdersScreen extends StatelessWidget {
               final orderData = orders[index].data() as Map<String, dynamic>;
               final orderId = orders[index].id;
 
-              // Safely handle different possible keys and types for the price
+              // Extract price
               final dynamic rawPrice = orderData['totalPrice'] ?? 
-                                       orderData['total'] ?? 
-                                       orderData['amount'] ?? 
-                                       orderData['grandTotal'] ?? 0;
+                                     orderData['total'] ?? 
+                                     orderData['amount'] ?? 
+                                     orderData['grandTotal'] ?? 0;
               final num totalPrice = (rawPrice is num) ? rawPrice : (num.tryParse(rawPrice.toString()) ?? 0);
 
               final status = orderData['status'] ?? 'Pending';
+              final List<dynamic> items = orderData['items'] as List<dynamic>? ?? [];
+
+              // Extract and format the date/timestamp
+              // (Checks 'createdAt', 'timestamp', or 'date' fields safely)
+              final dynamic rawTimestamp = orderData['createdAt'] ?? orderData['timestamp'] ?? orderData['date'];
+              String formattedDate = '';
+              if (rawTimestamp != null && rawTimestamp is Timestamp) {
+                DateTime dt = rawTimestamp.toDate();
+                // Format as: DD-MM-YYYY HH:MM (e.g., 11-09-2026 14:35)
+                String hour = dt.hour.toString().padLeft(2, '0');
+                String minute = dt.minute.toString().padLeft(2, '0');
+                formattedDate = '${dt.day}-${dt.month}-${dt.year}  $hour:$minute';
+              }
 
               return Card(
                 color: Colors.white,
+                elevation: 2,
                 margin: const EdgeInsets.only(bottom: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(16),
-                  title: Text(
-                    'Order #${orderId.substring(0, 8).toUpperCase()}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 6),
-                      Text('Total: PKR $totalPrice'),
-                      const SizedBox(height: 4),
-                      Text('Status: $status', style: const TextStyle(color: Colors.green)),
-                    ],
-                  ),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
                   onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => OrderDetailScreen(orderId: orderId,
-                        userId: effectiveUserId,),
+                        builder: (context) => OrderDetailScreen(
+                          orderId: orderId,
+                          userId: effectiveUserId,
+                        ),
                       ),
                     );
                   },
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Order ID & Status Header
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Order #${orderId.substring(0, orderId.length > 8 ? 8 : orderId.length).toUpperCase()}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                status,
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        
+                        // Order Date Display
+                        if (formattedDate.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            formattedDate,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+
+                        const SizedBox(height: 10),
+                        
+                        // Products list preview
+                        ...items.map((item) {
+                          final itemName = item['name'] ?? 'Product';
+                          final dynamic rawQty = item['quantity'] ?? 1;
+                          final int quantity = (rawQty is num) ? rawQty.toInt() : (int.tryParse(rawQty.toString()) ?? 1);
+                          
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '• $itemName',
+                                    style: const TextStyle(fontSize: 13, color: Colors.black87),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                Text(
+                                  'Qty: $quantity',
+                                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+
+                         const SizedBox(height: 10),
+
+                        // Total Amount & Arrow Footer
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Total: PKR $totalPrice',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: AppColors.primaryDark,
+                              ),
+                            ),
+                            const Row(
+                              children: [
+                                Text(
+                                  'Details',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                                ),
+                                SizedBox(width: 4),
+                                Icon(Icons.arrow_forward_ios, size: 12, color: Colors.grey),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               );
             },

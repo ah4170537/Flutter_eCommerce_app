@@ -50,9 +50,21 @@ class _LoginState extends State<Login> {
 
     setState(() => _isLoading = true);
     try {
+      // Capture the guest's UID BEFORE signing in — once signIn() succeeds,
+      // FirebaseAuth.instance.currentUser switches to the new account and
+      // the anonymous UID is no longer reachable.
       final User? preLoginUser = FirebaseAuth.instance.currentUser;
       final bool wasGuest = preLoginUser?.isAnonymous ?? false;
       final String? guestUserId = wasGuest ? preLoginUser?.uid : null;
+
+      // PHASE 1: capture + clear the guest cart WHILE STILL authenticated
+      // as the guest — Security Rules only allow a user to touch their
+      // own cart, so this must happen before the session switches.
+      List<Map<String, dynamic>> guestCartItems = [];
+      if (guestUserId != null && guestUserId.isNotEmpty) {
+        guestCartItems =
+            await _cartMergeHelper.captureAndClearGuestCart(guestUserId);
+      }
 
       final UserCredential userCredential = await AuthService.instance.signIn(
         email: _emailController.text,
@@ -62,10 +74,12 @@ class _LoginState extends State<Login> {
 
       final String userId = userCredential.user?.uid ?? '';
 
-      if (guestUserId != null && guestUserId.isNotEmpty) {
-        await _cartMergeHelper.mergeGuestCartIntoUser(
-          guestUserId: guestUserId,
+      // PHASE 2: now authenticated as the real user — write the captured
+      // guest items into their own cart.
+      if (guestCartItems.isNotEmpty) {
+        await _cartMergeHelper.mergeItemsIntoUserCart(
           newUserId: userId,
+          guestItems: guestCartItems,
         );
       }
 

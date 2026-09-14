@@ -63,9 +63,8 @@ class _RegisterState extends State<Register> {
 
     // All base fields are valid — now collect the additional profile
     // details via the popup before actually creating the account.
-    final RegistrationDetails? details = await showRegistrationDetailsDialog(
-      context,
-    );
+    final RegistrationDetails? details =
+        await showRegistrationDetailsDialog(context);
 
     // User cancelled the popup — don't proceed with registration.
     if (details == null) return;
@@ -79,6 +78,15 @@ class _RegisterState extends State<Register> {
       final User? preRegisterUser = FirebaseAuth.instance.currentUser;
       final bool wasGuest = preRegisterUser?.isAnonymous ?? false;
       final String? guestUserId = wasGuest ? preRegisterUser?.uid : null;
+
+      // PHASE 1: capture + clear the guest cart WHILE STILL authenticated
+      // as the guest — Security Rules only allow a user to touch their
+      // own cart, so this must happen before the session switches.
+      List<Map<String, dynamic>> guestCartItems = [];
+      if (guestUserId != null && guestUserId.isNotEmpty) {
+        guestCartItems =
+            await _cartMergeHelper.captureAndClearGuestCart(guestUserId);
+      }
 
       final credential = await AuthService.instance.signUp(
         name: _nameController.text,
@@ -96,14 +104,12 @@ class _RegisterState extends State<Register> {
 
       final String userId = credential.user?.uid ?? '';
 
-      // Merge any items the guest added to their cart into this brand-new
-      // account's cart. Since a new account has no cart yet, this simply
-      // copies the guest's items over. Safe to call even if the guest
-      // cart was empty — it just returns early in that case.
-      if (guestUserId != null && guestUserId.isNotEmpty) {
-        await _cartMergeHelper.mergeGuestCartIntoUser(
-          guestUserId: guestUserId,
+      // PHASE 2: now authenticated as the real user — write the captured
+      // guest items into their own (brand-new) cart.
+      if (guestCartItems.isNotEmpty) {
+        await _cartMergeHelper.mergeItemsIntoUserCart(
           newUserId: userId,
+          guestItems: guestCartItems,
         );
       }
 
