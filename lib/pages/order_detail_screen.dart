@@ -132,6 +132,7 @@ class OrderDetailScreen extends StatelessWidget {
                     itemBuilder: (context, index) {
                       final item = items[index] as Map<String, dynamic>;
                       final itemName = item['name'] ?? 'Product';
+                      final String? variant = item['variant']; // Extract variant
                       final dynamic itemPriceRaw = item['price'] ?? 0;
                       final num itemPrice = (itemPriceRaw is num)
                           ? itemPriceRaw
@@ -200,6 +201,17 @@ class OrderDetailScreen extends StatelessWidget {
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                     ),
+                                    if (variant != null && variant.isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Variant: $variant',
+                                        style: const TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
                                     const SizedBox(height: 4),
                                     Text(
                                       'Qty: $quantity',
@@ -228,8 +240,6 @@ class OrderDetailScreen extends StatelessWidget {
                 ),
 
                 const SizedBox(height: 12),
-                // Cancel Order — visible for 30 minutes after order creation
-                // (server-time enforced via Firestore Security Rules).
                 if (orderData['createdAt'] is Timestamp)
                   CancelOrderButton(
                     userId: effectiveUserId,
@@ -241,7 +251,6 @@ class OrderDetailScreen extends StatelessWidget {
                     },
                   ),
 
-                // --- Add this button right above the Reorder button ---
                 SizedBox(
                   width: double.infinity,
                   height: 50,
@@ -251,7 +260,7 @@ class OrderDetailScreen extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (context) => OrderProgressScreen(
-                            initialOrderId: orderId, // Changed from widget.orderId to orderId
+                            initialOrderId: orderId,
                           ),
                         ),
                       );
@@ -267,7 +276,6 @@ class OrderDetailScreen extends StatelessWidget {
                       ),
                     ),
                     label: const Text(
-                      // Changed from child: to label:
                       'View Order Progress',
                       style: TextStyle(
                         color: AppColors.primaryDark,
@@ -294,7 +302,7 @@ class OrderDetailScreen extends StatelessWidget {
                       ),
                       Text(
                         'PKR $totalPrice',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 18,
                           color: Colors.green,
@@ -304,7 +312,7 @@ class OrderDetailScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Reorder Button
+                // Reorder Button (Updated to support variant composite keys)
                 SizedBox(
                   width: double.infinity,
                   height: 50,
@@ -332,23 +340,29 @@ class OrderDetailScreen extends StatelessWidget {
                               item['id'] ??
                               item['product_id'] ??
                               '';
+                          final String? variant = item['variant'];
                           final int itemQty = (item['quantity'] is num)
                               ? item['quantity'].toInt()
                               : (int.tryParse(item['quantity'].toString()) ??
                                     1);
 
-                          final docRef = productId.isNotEmpty
-                              ? cartRef.doc(productId)
-                              : cartRef.doc();
+                          // Match unique composite cartDocId used in CartService
+                          final String sanitizedVariant = (variant != null && variant.isNotEmpty)
+                              ? variant.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')
+                              : 'default';
+                          final String cartDocId = productId.isNotEmpty
+                              ? '${productId}_$sanitizedVariant'
+                              : cartRef.doc().id;
 
-                          await docRef.set({
+                          await cartRef.doc(cartDocId).set({
                             'productId': productId.isNotEmpty
                                 ? productId
-                                : docRef.id,
+                                : cartDocId,
                             'name': item['name'] ?? 'Product',
                             'price': item['price'] ?? 0,
                             'quantity': FieldValue.increment(itemQty),
                             'imageUrl': item['imageUrl'] ?? '',
+                            'variant': variant,
                             'updatedAt': FieldValue.serverTimestamp(),
                           }, SetOptions(merge: true));
                         }

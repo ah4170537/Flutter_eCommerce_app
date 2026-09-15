@@ -98,6 +98,7 @@ class _CartScreenState extends State<CartScreen> {
             final productId = doc.id;
             final num price = data['price'] ?? 0;
             final num quantity = data['quantity'] ?? 1;
+            final String? variant = data['variant'];
 
             final bool isSelected = !_deselectedIds.contains(productId);
 
@@ -107,6 +108,7 @@ class _CartScreenState extends State<CartScreen> {
               'price': price,
               'quantity': quantity,
               'imageUrl': data['imageUrl'] ?? '',
+              'variant': variant, // Include variant for checkout/orders
             };
 
             if (isSelected) {
@@ -133,6 +135,7 @@ class _CartScreenState extends State<CartScreen> {
                     final String name = data['name'] ?? 'Product';
                     final num price = data['price'] ?? 0;
                     final String imageUrl = data['imageUrl'] ?? '';
+                    final String? variant = data['variant'];
                     final dynamic rawQty = data['quantity'] ?? 1;
                     final int quantity = (rawQty is num)
                         ? rawQty.toInt()
@@ -204,6 +207,17 @@ class _CartScreenState extends State<CartScreen> {
                                     color: AppColors.primaryDark,
                                   ),
                                 ),
+                                if (variant != null && variant.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Variant: $variant',
+                                    style: const TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
                                 const SizedBox(height: 4),
                                 Text(
                                   'PKR $price',
@@ -503,7 +517,7 @@ void _showGuestCheckoutPopup(
                 ),
               ),
               onPressed: () {
-                Navigator.pop(context); // Close sheet
+                Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -538,7 +552,7 @@ void _showGuestCheckoutPopup(
                 ),
               ),
               onPressed: () {
-                Navigator.pop(context); // Close sheet
+                Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const Login()),

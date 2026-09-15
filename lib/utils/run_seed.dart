@@ -39,6 +39,7 @@ void main() async {
       'price': 3000,
       'category': 'featured',
       'subCategory': 'headphones',
+      'variants': ['Matte Black', 'Silver Gray', 'Navy Blue'],
       'imagePaths': [
         'assets/products/headphones.jpg',
         'assets/products/headphones1.jpg',
@@ -52,6 +53,7 @@ void main() async {
       'price': 250000,
       'category': 'featured',
       'subCategory': 'camera',
+      'variants': ['18-55mm Lens Kit', 'Body Only', '50mm Prime Kit'],
       'imagePaths': [
         'assets/products/camera.jpg',
         'assets/products/camera1.jpg',
@@ -65,6 +67,7 @@ void main() async {
       'price': 150000,
       'category': 'featured',
       'subCategory': 'laptop',
+      'variants': ['16GB / 512GB SSD', '16GB / 1TB SSD', '32GB / 1TB SSD'],
       'imagePaths': [
         'assets/products/laptop.png',
         'assets/products/laptop1.png',
@@ -78,6 +81,7 @@ void main() async {
       'price': 50000,
       'category': 'featured',
       'subCategory': 'headphones',
+      'variants': ['Standard Edition', 'Studio Pro Edition'],
       'imagePaths': [
         'assets/products/studio_headphones.jpg',
         'assets/products/studio_headphones1.jpg',
@@ -93,6 +97,7 @@ void main() async {
       'price': 2000,
       'category': 'best_selling',
       'subCategory': 'smartwatch',
+      'variants': ['41mm - Silver', '45mm - Midnight Black', '45mm - Rose Gold'],
       'imagePaths': [
         'assets/products/smartwatch.jpg',
         'assets/products/smartwatch1.jpg',
@@ -106,6 +111,7 @@ void main() async {
       'price': 25000,
       'category': 'best_selling',
       'subCategory': 'shoes',
+      'variants': ['US 8', 'US 9', 'US 10', 'US 11'],
       'imagePaths': [
         'assets/products/shoes.jpg',
         'assets/products/shoes1.png',
@@ -119,6 +125,7 @@ void main() async {
       'price': 10000,
       'category': 'best_selling',
       'subCategory': 'headphones',
+      'variants': ['RGB Wired', 'Wireless Edition'],
       'imagePaths': [
         'assets/products/gaming_headset.jpg',
         'assets/products/gaming_headset1.jpg',
@@ -132,11 +139,11 @@ void main() async {
       'price': 9000,
       'category': 'best_selling',
       'subCategory': 'perfume',
+      'variants': ['50ml Bottle', '100ml Bottle', '100ml + Travel Spray'],
       'imagePaths': [
         'assets/products/perfume.png',
         'assets/products/perfume1.png',
         'assets/products/perfume2.png',
-        
       ],
     },
 
@@ -148,6 +155,7 @@ void main() async {
       'price': 8000,
       'category': 'popular',
       'subCategory': 'shoes',
+      'variants': ['UK 7', 'UK 8', 'UK 9', 'UK 10'],
       'imagePaths': [
         'assets/products/leather_shoes.jpg',
         'assets/products/leather_shoes1.png',
@@ -161,6 +169,7 @@ void main() async {
       'price': 4000,
       'category': 'popular',
       'subCategory': 'sunglasses',
+      'variants': ['Gold / Green Lens', 'Silver / Blue Lens', 'Black / Smoke Lens'],
       'imagePaths': [
         'assets/products/sunglasses.jpg',
         'assets/products/sunglasses1.jpg',
@@ -174,6 +183,7 @@ void main() async {
       'price': 14000,
       'category': 'popular',
       'subCategory': 'shoes',
+      'variants': ['US 7.5', 'US 8.5', 'US 9.5', 'US 10.5'],
       'imagePaths': [
         'assets/products/puma_sneakers.jpg',
         'assets/products/puma_sneakers1.png',
@@ -187,6 +197,7 @@ void main() async {
       'price': 7000,
       'category': 'popular',
       'subCategory': 'stool',
+      'variants': ['Natural Oak', 'Walnut Brown', 'Matte White'],
       'imagePaths': [
         'assets/products/wooden_stool.jpg',
         'assets/products/wooden_stool1.jpg',
@@ -200,6 +211,7 @@ void main() async {
       'price': 11000,
       'category': 'popular',
       'subCategory': 'smartwatch',
+      'variants': ['Silicone Strap', 'Nylon Loop Strap'],
       'imagePaths': [
         'assets/products/black_watch.jpg',
         'assets/products/black_watch1.png',
@@ -223,6 +235,7 @@ void main() async {
     final num newPrice = product['price'];
     final String newCategory = product['category'];
     final String newSubCategory = product['subCategory'];
+    final List<String> newVariants = List<String>.from(product['variants']);
 
     if (!docSnapshot.exists) {
       // --- CREATE NEW PRODUCT ---
@@ -240,8 +253,9 @@ void main() async {
         'price': newPrice,
         'category': newCategory,
         'subCategory': newSubCategory,
+        'variants': newVariants,
         'imageUrls': uploadedUrls,
-        'localImagePaths': currentImagePaths, // Stored to track local path updates
+        'localImagePaths': currentImagePaths,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -255,18 +269,23 @@ void main() async {
       final num existingPrice = data['price'] ?? 0;
       final String existingCategory = data['category'] ?? '';
       final String existingSubCategory = data['subCategory'] ?? '';
+      final List<dynamic> existingVariantsDynamic = data['variants'] ?? [];
+      final List<String> existingVariants = existingVariantsDynamic.map((e) => e.toString()).toList();
       
-      // Compare local image paths array to detect if images were modified
       final List<dynamic> existingLocalPaths = data['localImagePaths'] ?? [];
       
       bool imagesChanged = existingLocalPaths.length != currentImagePaths.length ||
           !List.generate(existingLocalPaths.length, (i) => existingLocalPaths[i] == currentImagePaths[i]).every((e) => e);
 
+      bool variantsChanged = existingVariants.length != newVariants.length ||
+          !List.generate(existingVariants.length, (i) => existingVariants[i] == newVariants[i]).every((e) => e);
+
       bool fieldsChanged = existingName != newName ||
           existingDescription != newDescription ||
           existingPrice != newPrice ||
           existingCategory != newCategory ||
-          existingSubCategory != newSubCategory;
+          existingSubCategory != newSubCategory ||
+          variantsChanged;
 
       if (fieldsChanged || imagesChanged) {
         print('Changes detected for "$newName" (ID: $docId). Updating...');
@@ -279,7 +298,6 @@ void main() async {
             if (url != null) finalImageUrls.add(url);
           }
         } else {
-          // Keep existing URLs if images weren't modified locally
           finalImageUrls = List<String>.from(data['imageUrls'] ?? []);
         }
 
@@ -289,6 +307,7 @@ void main() async {
           'price': newPrice,
           'category': newCategory,
           'subCategory': newSubCategory,
+          'variants': newVariants,
           'imageUrls': finalImageUrls,
           'localImagePaths': currentImagePaths,
           'updatedAt': FieldValue.serverTimestamp(),

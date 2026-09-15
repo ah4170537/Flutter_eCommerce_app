@@ -27,6 +27,10 @@ dependencies:
   country_state_city: ^0.1.6
   image_picker: ^1.1.2
   image_cropper: ^8.0.3
+  flutter_native_splash: ^2.4.3
+  google_maps_flutter: ^2.9.0
+  geocoding: ^3.0.0
+  geolocator: ^13.0.1
 
 
 
@@ -42,3 +46,10 @@ flutter:
     - assets/images/logo.png
     - assets/products/
     - .env
+
+flutter_native_splash:
+  color: "#FFFFFF" # Your app background color (e.g., White or AppColors.white hex code)
+  image: "assets/images/logo.png" # Path to your app logo image
+  android_12:
+    color: "#FFFFFF"
+    image: "assets/images/logo.png"

@@ -24,8 +24,11 @@ class ProductDetailsScreen extends StatefulWidget {
 
 class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   final CartService _cartService = CartService();
-  int _selectedQuantity =
-      1; // Sirf variable rakha hai, setState ki zaroorat nahi
+  int _selectedQuantity = 1;
+  
+  // ValueNotifier ensures choosing a variant only updates the chips, preventing screen/stream flickers
+  final ValueNotifier<String?> _selectedVariantNotifier = ValueNotifier<String?>(null);
+  
   late final Stream<DocumentSnapshot> _productStream;
   final ValueNotifier<bool> _isAddingToCart = ValueNotifier<bool>(false);
 
@@ -36,6 +39,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         .collection(AppStrings.productsCollection)
         .doc(widget.productId)
         .snapshots();
+  }
+
+  @override
+  void dispose() {
+    _selectedVariantNotifier.dispose();
+    _isAddingToCart.dispose();
+    super.dispose();
   }
 
   @override
@@ -80,6 +90,18 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 data['description'] ??
                 'No description available for this product.';
             final String subCategory = data['subCategory'] ?? '';
+
+            // Extract variants from Firestore safely
+            final List<dynamic> variantsDynamic = data['variants'] ?? [];
+            final List<String> variants =
+                variantsDynamic.map((e) => e.toString()).toList();
+
+            // Set a default selected variant if not chosen yet
+            if (variants.isNotEmpty &&
+                (_selectedVariantNotifier.value == null ||
+                    !variants.contains(_selectedVariantNotifier.value))) {
+              _selectedVariantNotifier.value = variants.first;
+            }
 
             return CustomScrollView(
               slivers: [
@@ -166,7 +188,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                 .doc(widget.productId)
                                 .snapshots(),
                             builder: (context, reviewSnapshot) {
-                              // Still loading — show a neutral placeholder, not "New" or "0 reviews"
                               if (reviewSnapshot.connectionState ==
                                   ConnectionState.waiting) {
                                 return Row(
@@ -255,6 +276,59 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                               );
                             },
                           ),
+
+                          // --- VARIANTS SELECTION CHIPS ---
+                          if (variants.isNotEmpty) ...[
+                            const SizedBox(height: 20),
+                            const Text(
+                              'Select Option / Variant',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primaryDark,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            ValueListenableBuilder<String?>(
+                              valueListenable: _selectedVariantNotifier,
+                              builder: (context, currentSelectedVariant, child) {
+                                return Wrap(
+                                  spacing: 8.0,
+                                  runSpacing: 4.0,
+                                  children: variants.map((variant) {
+                                    final bool isSelected =
+                                        currentSelectedVariant == variant;
+                                    return ChoiceChip(
+                                      label: Text(variant),
+                                      selected: isSelected,
+                                      selectedColor: AppColors.primaryDark,
+                                      labelStyle: TextStyle(
+                                        color: isSelected
+                                            ? Colors.white
+                                            : AppColors.primaryDark,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      backgroundColor: Colors.grey.shade100,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        side: BorderSide(
+                                          color: isSelected
+                                              ? AppColors.primaryDark
+                                              : Colors.grey.shade300,
+                                        ),
+                                      ),
+                                      onSelected: (selected) {
+                                        if (selected) {
+                                          _selectedVariantNotifier.value = variant;
+                                        }
+                                      },
+                                    );
+                                  }).toList(),
+                                );
+                              },
+                            ),
+                          ],
+
                           const SizedBox(height: 24),
                           const Text(
                             'Description',
@@ -275,12 +349,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                           ),
                           const SizedBox(height: 24),
 
-                          // Yahan setState hata kar sirf variable update kiya hai
                           QuantitySelector(
                             initialQuantity: _selectedQuantity,
                             onChanged: (newQuantity) {
-                              _selectedQuantity =
-                                  newQuantity; // No setState here!
+                              _selectedQuantity = newQuantity;
                             },
                           ),
                           const SizedBox(height: 24),
@@ -394,6 +466,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                               ? effectiveImages[0]
                               : '';
 
+                          // Optional: grab the active variant if needed for cart logic
+                          final String? chosenVariant =
+                              _selectedVariantNotifier.value;
+
                           await _cartService.addToCart(
                             userId: userId,
                             productId: widget.productId,
@@ -403,11 +479,11 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                             price: data[AppStrings.priceField] ?? 0,
                             imageUrl: cartImageUrl,
                             quantity: _selectedQuantity,
+                            variant: chosenVariant,
                           );
 
                           if (!mounted) return;
 
-                          // Show success snackbar instead of pushing CartScreen
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Added to cart successfully!'),

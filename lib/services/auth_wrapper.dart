@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../pages/main_navigation_screen.dart';
+import '../pages/login.dart'; // Import your login screen
 import '../services/auth_service.dart';
 
 class AuthWrapper extends StatelessWidget {
@@ -20,8 +21,13 @@ class AuthWrapper extends StatelessWidget {
 
         if (snapshot.hasData && snapshot.data != null) {
           final User user = snapshot.data!;
-       
           return MainNavigationScreen(userId: user.uid);
+        }
+
+        // If they just clicked logout during this session, show the Login screen.
+        // If they close and reopen the app, this resets to false, booting them as a guest!
+        if (AuthService.manualLogoutOccurred) {
+          return const Login();
         }
 
         return const _GuestBootstrapper();
@@ -45,7 +51,6 @@ class _GuestBootstrapperState extends State<_GuestBootstrapper> {
   }
 
   Future<void> _signInAsGuestWhenSafe() async {
- 
     int safetyCounter = 0;
     while (AuthService.isAuthTransitionInProgress && safetyCounter < 50) {
       await Future.delayed(const Duration(milliseconds: 100));
@@ -54,14 +59,11 @@ class _GuestBootstrapperState extends State<_GuestBootstrapper> {
 
     if (!mounted) return;
 
-  
     if (FirebaseAuth.instance.currentUser != null) return;
 
     try {
       await FirebaseAuth.instance.signInAnonymously();
-   
     } catch (e) {
-   
       debugPrint('Anonymous sign-in failed: $e');
     }
   }

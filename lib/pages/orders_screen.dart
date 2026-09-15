@@ -90,12 +90,10 @@ class OrdersScreen extends StatelessWidget {
               final List<dynamic> items = orderData['items'] as List<dynamic>? ?? [];
 
               // Extract and format the date/timestamp
-              // (Checks 'createdAt', 'timestamp', or 'date' fields safely)
               final dynamic rawTimestamp = orderData['createdAt'] ?? orderData['timestamp'] ?? orderData['date'];
               String formattedDate = '';
               if (rawTimestamp != null && rawTimestamp is Timestamp) {
                 DateTime dt = rawTimestamp.toDate();
-                // Format as: DD-MM-YYYY HH:MM (e.g., 11-09-2026 14:35)
                 String hour = dt.hour.toString().padLeft(2, '0');
                 String minute = dt.minute.toString().padLeft(2, '0');
                 formattedDate = '${dt.day}-${dt.month}-${dt.year}  $hour:$minute';
@@ -140,7 +138,7 @@ class OrdersScreen extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.1),
+                                color: Colors.green.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
@@ -169,23 +167,38 @@ class OrdersScreen extends StatelessWidget {
 
                         const SizedBox(height: 10),
                         
-                        // Products list preview
+                        // Products list preview with variants
                         ...items.map((item) {
                           final itemName = item['name'] ?? 'Product';
+                          final String? variant = item['variant'];
                           final dynamic rawQty = item['quantity'] ?? 1;
                           final int quantity = (rawQty is num) ? rawQty.toInt() : (int.tryParse(rawQty.toString()) ?? 1);
                           
                           return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 2.0),
+                            padding: const EdgeInsets.symmetric(vertical: 3.0),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Expanded(
-                                  child: Text(
-                                    '• $itemName',
-                                    style: const TextStyle(fontSize: 13, color: Colors.black87),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '• $itemName',
+                                        style: const TextStyle(fontSize: 13, color: Colors.black87),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      if (variant != null && variant.isNotEmpty) ...[
+                                        Padding(
+                                          padding: const EdgeInsets.only(left: 10.0),
+                                          child: Text(
+                                            'Variant: $variant',
+                                            style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ),
                                 Text(

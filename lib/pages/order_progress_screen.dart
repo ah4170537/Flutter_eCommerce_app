@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
@@ -14,9 +15,6 @@ class OrderProgressScreen extends StatefulWidget {
 
 class _OrderProgressScreenState extends State<OrderProgressScreen> {
   final TextEditingController _searchController = TextEditingController();
-  
-  // We use this state variable to hold the currently searched/active Order ID 
-  // that the StreamBuilder should listen to.
   String? _activeOrderId;
 
   @override
@@ -38,7 +36,6 @@ class _OrderProgressScreenState extends State<OrderProgressScreen> {
     final queryId = _searchController.text.trim();
     if (queryId.isEmpty) return;
 
-    // Unfocus keyboard and trigger a rebuild with the new active order ID
     FocusScope.of(context).unfocus();
     setState(() {
       _activeOrderId = queryId;
@@ -48,6 +45,7 @@ class _OrderProgressScreenState extends State<OrderProgressScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isStandalone = widget.initialOrderId == null || widget.initialOrderId!.isEmpty;
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -101,58 +99,30 @@ class _OrderProgressScreenState extends State<OrderProgressScreen> {
               const SizedBox(height: 16),
             ],
 
-            // Main Content Area handled by StreamBuilders
+            // Main Content Area
             Expanded(
               child: _activeOrderId == null || _activeOrderId!.isEmpty
                   ? const Center(child: Text('Enter an Order ID to view progress.'))
-                  : StreamBuilder<DocumentSnapshot>(
-                      // Step 1: Listen to the order index to find out which user owns this order ID
-                      stream: FirebaseFirestore.instance
-                          .collection('order_index')
-                          .doc(_activeOrderId)
-                          .snapshots(),
-                      builder: (context, indexSnapshot) {
-                        if (indexSnapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator(color: AppColors.primaryDark));
-                        }
-
-                        if (!indexSnapshot.hasData || !indexSnapshot.data!.exists) {
-                          return Center(
-                            child: Text(
-                              'Order #$_activeOrderId not found.',
-                              style: const TextStyle(color: Colors.red, fontSize: 14),
-                              textAlign: TextAlign.center,
-                            ),
-                          );
-                        }
-
-                        final indexData = indexSnapshot.data!.data() as Map<String, dynamic>?;
-                        final String? ownerUserId = indexData?['userId'];
-
-                        if (ownerUserId == null || ownerUserId.isEmpty) {
-                          return Center(
-                            child: Text(
-                              'Order #$_activeOrderId not found.',
-                              style: const TextStyle(color: Colors.red, fontSize: 14),
-                              textAlign: TextAlign.center,
-                            ),
-                          );
-                        }
-
-                        // Step 2: Once we have the ownerUserId, listen to the actual progress document in real-time
-                        return StreamBuilder<DocumentSnapshot>(
+                  : currentUserId == null
+                      ? const Center(
+                          child: Text(
+                            'Please log in to track your orders.',
+                            style: TextStyle(color: Colors.red, fontSize: 14),
+                          ),
+                        )
+                      : StreamBuilder<DocumentSnapshot>(
                           stream: FirebaseFirestore.instance
-                              .collection('order_progress')
-                              .doc(ownerUserId)
-                              .collection('user_progress_items')
+                              .collection('orders')
+                              .doc(currentUserId)
+                              .collection('user_orders')
                               .doc(_activeOrderId)
                               .snapshots(),
-                          builder: (context, orderSnapshot) {
-                            if (orderSnapshot.connectionState == ConnectionState.waiting) {
+                          builder: (context, primaryOrderSnapshot) {
+                            if (primaryOrderSnapshot.connectionState == ConnectionState.waiting) {
                               return const Center(child: CircularProgressIndicator(color: AppColors.primaryDark));
                             }
 
-                            if (!orderSnapshot.hasData || !orderSnapshot.data!.exists) {
+                            if (!primaryOrderSnapshot.hasData || !primaryOrderSnapshot.data!.exists) {
                               return Center(
                                 child: Text(
                                   'Order #$_activeOrderId not found.',
@@ -162,108 +132,35 @@ class _OrderProgressScreenState extends State<OrderProgressScreen> {
                               );
                             }
 
-                            final orderData = orderSnapshot.data!.data() as Map<String, dynamic>?;
-                            if (orderData == null) {
-                              return const Center(child: Text('No data available for this order.'));
-                            }
+                            final primaryData = primaryOrderSnapshot.data!.data() as Map<String, dynamic>? ?? {};
+                            final items = primaryData['items'] as List<dynamic>? ?? [];
+                            final primaryStatus = primaryData['status'] ?? primaryData['orderStatus'] ?? 'Processing';
 
-                            final foundOrderId = orderData['orderId'] ?? orderSnapshot.data!.id;
-                            final currentStatus = orderData['currentStatus'] ?? 'Pending';
-                            final items = orderData['items'] as List<dynamic>? ?? [];
-                            final progressSteps = orderData['progressSteps'] as List<dynamic>? ?? [];
+                            return StreamBuilder<DocumentSnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('order_progress')
+                                  .doc(currentUserId)
+                                  .collection('user_progress_items')
+                                  .doc(_activeOrderId)
+                                  .snapshots(),
+                              builder: (context, progressSnapshot) {
+                                final progressData = progressSnapshot.hasData && progressSnapshot.data!.exists
+                                    ? progressSnapshot.data!.data() as Map<String, dynamic>?
+                                    : null;
 
-                            return ListView(
-                              children: [
-                                // Order ID & Status Header
-                                Text(
-                                  'Order ID: #$foundOrderId',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                    color: AppColors.textGrey,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Row(
-                                  children: [
-                                    const Text(
-                                      'Status: ',
-                                      style: TextStyle(fontWeight: FontWeight.w500),
-                                    ),
-                                    Text(
-                                      currentStatus,
-                                      style: TextStyle(
-                                        color: currentStatus.toString().toLowerCase() == 'cancelled'
-                                            ? Colors.red
-                                            : Colors.green,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const Divider(height: 24),
+                                final currentStatus = progressData?['currentStatus'] ?? primaryStatus;
+                                final progressSteps = progressData?['progressSteps'] as List<dynamic>? ?? [];
 
-                                // Products Summary / Items if present
-                                if (items.isNotEmpty) ...[
-                                  const Text(
-                                    'Items in Order',
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade50,
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(color: Colors.grey.shade200),
-                                    ),
-                                    child: Column(
-                                      children: items.map((item) {
-                                        final itemName = item['name'] ?? 'Product';
-                                        final dynamic rawQty = item['quantity'] ?? 1;
-                                        final int quantity = (rawQty is num)
-                                            ? rawQty.toInt()
-                                            : (int.tryParse(rawQty.toString()) ?? 1);
-
-                                        return Padding(
-                                          padding: const EdgeInsets.symmetric(vertical: 4.0),
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  '• $itemName',
-                                                  style: const TextStyle(fontSize: 14, color: Colors.black87),
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                              Text(
-                                                'Qty: $quantity',
-                                                style: const TextStyle(fontSize: 14, color: AppColors.textGrey),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }).toList(),
-                                    ),
-                                  ),
-                                  const Divider(height: 24),
-                                ],
-
-                                // Tracking Timeline
-                                const Text(
-                                  'Order Progress Timeline',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                ),
-                                const SizedBox(height: 12),
-                                _buildTrackingTimeline(progressSteps),
-                              ],
+                                return _buildOrderContent(
+                                  orderId: _activeOrderId!,
+                                  currentStatus: currentStatus,
+                                  items: items,
+                                  progressSteps: progressSteps,
+                                );
+                              },
                             );
                           },
-                        );
-                      },
-                    ),
+                        ),
             ),
           ],
         ),
@@ -271,14 +168,139 @@ class _OrderProgressScreenState extends State<OrderProgressScreen> {
     );
   }
 
-  Widget _buildTrackingTimeline(List<dynamic> trackingSteps) {
-    if (trackingSteps.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 16.0),
-        child: Text('No tracking updates available yet.', style: TextStyle(color: AppColors.textGrey)),
-      );
-    }
+  Widget _buildOrderContent({
+    required String orderId,
+    required String currentStatus,
+    required List<dynamic> items,
+    required List<dynamic> progressSteps,
+  }) {
+    return ListView(
+      children: [
+        Text(
+          'Order ID: #$orderId',
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+            color: AppColors.textGrey,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            const Text(
+              'Status: ',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            Text(
+              currentStatus,
+              style: TextStyle(
+                color: currentStatus.toString().toLowerCase() == 'cancelled'
+                    ? Colors.red
+                    : Colors.green,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const Divider(height: 24),
 
+        // Items List (Always displayed with variants)
+        if (items.isNotEmpty) ...[
+          const Text(
+            'Items in Order',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              children: items.map((item) {
+                final itemName = item['name'] ?? 'Product';
+                final String? variant = item['variant'];
+                final dynamic rawQty = item['quantity'] ?? 1;
+                final int quantity = (rawQty is num)
+                    ? rawQty.toInt()
+                    : (int.tryParse(rawQty.toString()) ?? 1);
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '• $itemName',
+                              style: const TextStyle(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (variant != null && variant.isNotEmpty) ...[
+                              Padding(
+                                padding: const EdgeInsets.only(left: 12.0, top: 2),
+                                child: Text(
+                                  'Variant: $variant',
+                                  style: const TextStyle(fontSize: 12, color: AppColors.textGrey),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      Text(
+                        'Qty: $quantity',
+                        style: const TextStyle(fontSize: 14, color: AppColors.textGrey),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const Divider(height: 24),
+        ],
+
+        // Tracking Timeline Section
+        const Text(
+          'Order Progress Timeline',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 12),
+        
+        progressSteps.isEmpty
+            ? Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded, color: AppColors.primaryDark, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'No progress updates available yet. Your order has been placed successfully.',
+                        style: TextStyle(fontSize: 13, color: AppColors.textGrey),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : _buildTrackingTimeline(progressSteps),
+      ],
+    );
+  }
+
+  Widget _buildTrackingTimeline(List<dynamic> trackingSteps) {
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -373,25 +395,6 @@ class _OrderProgressScreenState extends State<OrderProgressScreen> {
                         style: const TextStyle(
                           fontSize: 13,
                           color: Colors.black54,
-                        ),
-                      ),
-                    ],
-                    if (isLatest && !isLastStepOverall) ...[
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.orange.shade200),
-                        ),
-                        child: const Text(
-                          'Current Status',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange,
-                          ),
                         ),
                       ),
                     ],

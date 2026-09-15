@@ -580,9 +580,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     // Registered Full Name (Read-Only)
                     TextFormField(
                       controller: _fullNameController,
-                      readOnly: true,
+                      
                       decoration: _buildInputDecoration(
-                        'Full Name (From Registration)',
+                        'Full Name',
                         Icons.person_outline,
                       ),
                     ),
@@ -590,9 +590,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     // Registered Email (Read-Only)
                     TextFormField(
                       controller: _emailController,
-                      readOnly: true,
+                  
                       decoration: _buildInputDecoration(
-                        'Email Address (From Registration)',
+                        'Email Address',
                         Icons.email_outlined,
                       ),
                     ),

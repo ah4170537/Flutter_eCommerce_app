@@ -16,6 +16,7 @@ class AuthService {
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   static bool isAuthTransitionInProgress = false;
+  static bool manualLogoutOccurred = false;
 
   // EmailJS Credentials
   static const String _emailJsServiceId = 'service_3a778zs';
@@ -88,15 +89,16 @@ class AuthService {
       isAuthTransitionInProgress = false;
     }
   }
-
   Future<void> signOut() async {
-    isAuthTransitionInProgress = true;
-    try {
-      await _auth.signOut();
-    } finally {
-      isAuthTransitionInProgress = false;
-    }
+  manualLogoutOccurred = true; 
+  try {
+    await _auth.signOut();
+  } finally {
+   isAuthTransitionInProgress = false;
   }
+}
+
+ 
 
   Future<bool> checkEmailExists(String email) async {
     final trimmedEmail = email.trim().toLowerCase();
