@@ -61,21 +61,18 @@ class _RegisterState extends State<Register> {
       return;
     }
 
-    
+    // Show popup to collect Phone, Country, State, City, and Address via packages
     final RegistrationDetails? details =
         await showRegistrationDetailsDialog(context);
-
 
     if (details == null) return;
 
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-   
       final User? preRegisterUser = FirebaseAuth.instance.currentUser;
       final bool wasGuest = preRegisterUser?.isAnonymous ?? false;
       final String? guestUserId = wasGuest ? preRegisterUser?.uid : null;
-
 
       List<Map<String, dynamic>> guestCartItems = [];
       if (guestUserId != null && guestUserId.isNotEmpty) {
@@ -87,19 +84,19 @@ class _RegisterState extends State<Register> {
         name: _nameController.text,
         email: _emailController.text,
         password: _passwordController.text,
-        firstName: details.firstName,
-        lastName: details.lastName,
         phone: details.phone,
-        address: details.address,
+        country: details.country,
+        state: details.state,
         city: details.city,
+        address: details.address,
       );
+      
       await credential.user?.updateDisplayName(_nameController.text.trim());
 
       if (!mounted) return;
 
       final String userId = credential.user?.uid ?? '';
 
-    
       if (guestCartItems.isNotEmpty) {
         await _cartMergeHelper.mergeItemsIntoUserCart(
           newUserId: userId,

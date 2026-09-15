@@ -15,7 +15,6 @@ class AuthService {
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-
   static bool isAuthTransitionInProgress = false;
 
   // EmailJS Credentials
@@ -23,16 +22,15 @@ class AuthService {
   static const String _emailJsTemplateId = 'template_n4ykzgf';
   static const String _emailJsPublicKey = 'xLJyWo6CV8LvFq26t';
 
-
   Future<UserCredential> signUp({
     required String name,
     required String email,
     required String password,
-    String? firstName,
-    String? lastName,
     String? phone,
-    String? address,
+    String? country,
+    String? state,
     String? city,
+    String? address,
   }) async {
     isAuthTransitionInProgress = true;
     try {
@@ -55,16 +53,16 @@ class AuthService {
             'email': trimmedEmail,
             if (phone != null) 'phone': phone.trim(),
             'createdAt': FieldValue.serverTimestamp(),
-            if (firstName != null || lastName != null || phone != null || address != null || city != null)
+            if (phone != null || address != null || city != null || state != null || country != null)
               'shippingAddress': {
-                if (firstName != null) 'firstName': firstName.trim(),
-                if (lastName != null) 'lastName': lastName.trim(),
                 'email': trimmedEmail,
                 if (phone != null) 'phone': phone.trim(),
                 'secondaryPhone': '',
                 'postalCode': '',
                 if (address != null) 'address': address.trim(),
                 if (city != null) 'city': city.trim(),
+                if (state != null) 'state': state.trim(),
+                if (country != null) 'country': country.trim(),
               },
           });
         } catch (_) {}

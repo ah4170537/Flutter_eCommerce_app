@@ -1,34 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:country_state_city_picker/country_state_city_picker.dart';
 
 import '../theme/app_colors.dart';
 
 /// A model holding the extra profile details collected in the popup.
 class RegistrationDetails {
-  final String firstName;
-  final String lastName;
   final String phone;
-  final String address;
+  final String country;
+  final String state;
   final String city;
+  final String address;
 
   const RegistrationDetails({
-    required this.firstName,
-    required this.lastName,
     required this.phone,
-    required this.address,
+    required this.country,
+    required this.state,
     required this.city,
+    required this.address,
   });
 }
 
-/// Shows a popup asking for First Name, Last Name, Phone, Address, and City.
-///
-/// Returns a [RegistrationDetails] if the user fills the form and taps
-/// "Confirm & Register", or `null` if they cancel/dismiss the dialog.
+/// Shows a mandatory popup asking for Phone, Country, State, City, and Address.
 Future<RegistrationDetails?> showRegistrationDetailsDialog(
   BuildContext context,
 ) {
   return showDialog<RegistrationDetails>(
     context: context,
-    barrierDismissible: false,
+    barrierDismissible: false, // Prevents closing by tapping outside
     builder: (context) => const _AdditionalDetailsDialog(),
   );
 }
@@ -43,20 +42,16 @@ class _AdditionalDetailsDialog extends StatefulWidget {
 
 class _AdditionalDetailsDialogState extends State<_AdditionalDetailsDialog> {
   final _formKey = GlobalKey<FormState>();
-
-  final _firstNameController = TextEditingController();
-  final _lastNameController = TextEditingController();
-  final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
-  final _cityController = TextEditingController();
+
+  String _completePhoneNumber = '';
+  String _country = '';
+  String _state = '';
+  String _city = '';
 
   @override
   void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _phoneController.dispose();
     _addressController.dispose();
-    _cityController.dispose();
     super.dispose();
   }
 
@@ -67,149 +62,247 @@ class _AdditionalDetailsDialogState extends State<_AdditionalDetailsDialog> {
     return null;
   }
 
-  String? _phoneValidator(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Phone number is required';
-    final digitsOnly = value.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digitsOnly.length < 7) return 'Enter a valid phone number';
-    return null;
-  }
-
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
+    if (_country.isEmpty || _state.isEmpty || _city.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please select your Country, State, and City'),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (_completePhoneNumber.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please enter a valid phone number'),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     Navigator.of(context).pop(
       RegistrationDetails(
-        firstName: _firstNameController.text.trim(),
-        lastName: _lastNameController.text.trim(),
-        phone: _phoneController.text.trim(),
+        phone: _completePhoneNumber,
+        country: _country,
+        state: _state,
+        city: _city,
         address: _addressController.text.trim(),
-        city: _cityController.text.trim(),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'A Few More Details',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryDark,
+    return WillPopScope(
+      onWillPop: () async => false, // Prevents closing via hardware back button
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        elevation: 12,
+        child: Container(
+          constraints: const BoxConstraints(maxHeight: 700),
+          padding: const EdgeInsets.all(24.0),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Decorative Header Icon
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryDark.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.verified_user_rounded,
+                        size: 36,
+                        color: AppColors.primaryDark,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Help us complete your profile',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textGrey, fontSize: 13),
-                ),
-                const SizedBox(height: 20),
+                  const SizedBox(height: 16),
+                  
+                  // Title
+                  const Text(
+                    'Almost There!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryDark,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  
+                  // Subtitle
+                  const Text(
+                    'Please provide your location and contact details to complete your account setup.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.textGrey,
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
 
-                TextFormField(
-                  controller: _firstNameController,
-                  decoration: _inputDecoration('First Name'),
-                  validator: (v) => _requiredValidator(v, 'First name'),
-                ),
-                const SizedBox(height: 14),
+                  // Section Label: Contact Info
+                  const Text(
+                    'CONTACT INFORMATION',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                      color: AppColors.textGrey,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
 
-                TextFormField(
-                  controller: _lastNameController,
-                  decoration: _inputDecoration('Last Name'),
-                  validator: (v) => _requiredValidator(v, 'Last name'),
-                ),
-                const SizedBox(height: 14),
-
-                TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  decoration: _inputDecoration('Phone Number'),
-                  validator: _phoneValidator,
-                ),
-                const SizedBox(height: 14),
-
-                TextFormField(
-                  controller: _addressController,
-                  decoration: _inputDecoration('Address'),
-                  validator: (v) => _requiredValidator(v, 'Address'),
-                ),
-                const SizedBox(height: 14),
-
-                TextFormField(
-                  controller: _cityController,
-                  decoration: _inputDecoration('City'),
-                  validator: (v) => _requiredValidator(v, 'City'),
-                ),
-                const SizedBox(height: 24),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text('Cancel'),
+                  // Phone Number Field
+                  IntlPhoneField(
+                    decoration: InputDecoration(
+                      labelText: 'Phone Number',
+                      labelStyle: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textGrey,
+                      ),
+                      filled: true,
+                      fillColor: AppColors.hintGrey.withValues(alpha: 0.25),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _submit,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryDark,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
+                    initialCountryCode: 'PK',
+                    onChanged: (phone) {
+                      _completePhoneNumber = phone.completeNumber;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Section Label: Location Info
+                  const Text(
+                    'DELIVERY / LOCATION',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                      color: AppColors.textGrey,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Package-based Country, State, City Cascading Dropdowns
+                  SelectState(
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: AppColors.hintGrey.withValues(alpha: 0.25),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
+                    ),
+                    dropdownColor: Colors.white,
+                    style: const TextStyle(
+                      color: AppColors.textDark,
+                      fontSize: 14,
+                    ),
+                    onCountryChanged: (value) {
+                      setState(() {
+                        _country = value;
+                      });
+                    },
+                    onStateChanged: (value) {
+                      setState(() {
+                        _state = value;
+                      });
+                    },
+                    onCityChanged: (value) {
+                      setState(() {
+                        _city = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Street Address Field
+                  TextFormField(
+                    controller: _addressController,
+                    decoration: InputDecoration(
+                      labelText: 'Street Address / House No.',
+                      labelStyle: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textGrey,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.home_outlined,
+                        size: 20,
+                        color: AppColors.primaryDark,
+                      ),
+                      filled: true,
+                      fillColor: AppColors.hintGrey.withValues(alpha: 0.25),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
+                    ),
+                    validator: (v) => _requiredValidator(v, 'Address'),
+                  ),
+                  const SizedBox(height: 28),
+
+                  // Full-Width Prominent Submit Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryDark,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
                         ),
-                        child: const Text(
-                          'Confirm',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        elevation: 2,
+                      ),
+                      child: const Text(
+                        'Complete Registration',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    );
-  }
-
-  InputDecoration _inputDecoration(String label) {
-    return InputDecoration(
-      labelText: label,
-      filled: true,
-      fillColor: AppColors.hintGrey.withValues(alpha: 0.25),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     );
   }
 }

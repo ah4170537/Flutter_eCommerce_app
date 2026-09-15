@@ -2,6 +2,8 @@ import 'package:authentication_module/pages/main_navigation_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:country_state_city/country_state_city.dart' as csc;
+import 'package:intl_phone_field/intl_phone_field.dart';
 
 import '../services/order_service.dart';
 import '../theme/app_colors.dart';
@@ -29,26 +31,61 @@ class CheckoutScreen extends StatefulWidget {
 class _CheckoutScreenState extends State<CheckoutScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  final _firstNameController = TextEditingController();
-  final _lastNameController = TextEditingController();
+  final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _secondaryPhoneController = TextEditingController();
+
+  String _phone = '';
+  String _secondaryPhone = '';
+
+  String _country = '';
+  String _state = '';
+  String _city = '';
+
   final _postalCodeController = TextEditingController();
   final _addressController = TextEditingController();
-  final _cityController = TextEditingController();
 
   String _selectedDeliveryMode = 'Cash on Delivery';
   bool _isLoading = false;
   bool _isSavingInfo = true;
 
+  bool _profileLoaded = false;
+
+  List<csc.Country> _countries = [];
+  List<csc.State> _states = [];
+  List<csc.City> _cities = [];
+
+  String? _selectedCountryIso;
+  String? _selectedStateIso;
+  String? _selectedCityName;
+
+  bool _loadingCountries = true;
+  bool _loadingStates = false;
+  bool _loadingCities = false;
+
+  bool _locationHydrated = false;
+
   @override
   void initState() {
     super.initState();
-    _loadSavedShippingInfo();
+    _initLocationAndProfile();
   }
 
-  Future<void> _loadSavedShippingInfo() async {
+  Future<void> _initLocationAndProfile() async {
+    // Load the full country list once, up front.
+    final countries = await csc.getAllCountries();
+    if (mounted) {
+      setState(() {
+        _countries = countries;
+        _loadingCountries = false;
+      });
+    }
+
+    await _loadUserRegistrationAndShippingInfo();
+
+    await _hydrateLocationFromSavedNames();
+  }
+
+  Future<void> _loadUserRegistrationAndShippingInfo() async {
     try {
       final doc = await FirebaseFirestore.instance
           .collection('users')
@@ -58,34 +95,209 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       if (!doc.exists || doc.data() == null || !mounted) return;
 
       final data = doc.data()!;
-      final shipping = data['shippingAddress'] as Map<String, dynamic>?;
-
       final User? authUser = FirebaseAuth.instance.currentUser;
 
-      if (shipping == null) {
-        setState(() {
-          _emailController.text = data['email'] ?? authUser?.email ?? '';
-        });
-        return;
+      final registeredName =
+          data['name'] ?? data['fullName'] ?? authUser?.displayName ?? '';
+      final registeredEmail = data['email'] ?? authUser?.email ?? '';
+
+      String loadedPhone = '';
+      String loadedSecondaryPhone = '';
+      String loadedCountry = '';
+      String loadedState = '';
+      String loadedCity = '';
+      String loadedPostalCode = '';
+      String loadedAddress = '';
+
+      final shipping = data['shippingAddress'] as Map<String, dynamic>?;
+      if (shipping != null) {
+
+        String rawCountry = (shipping['country'] ?? '').toString().trim();
+        final codePrefix = RegExp(r'^[A-Z]{2,3}\s+');
+        if (codePrefix.hasMatch(rawCountry)) {
+          rawCountry = rawCountry.replaceFirst(codePrefix, '').trim();
+        }
+
+        loadedPhone = (shipping['phone'] ?? '').toString();
+        loadedSecondaryPhone = (shipping['secondaryPhone'] ?? '').toString();
+        loadedCountry = rawCountry;
+        loadedState = (shipping['state'] ?? '').toString();
+        loadedCity = (shipping['city'] ?? '').toString();
+        loadedPostalCode = (shipping['postalCode'] ?? '').toString();
+        loadedAddress = (shipping['address'] ?? '').toString();
       }
 
+      if (!mounted) return;
+
       setState(() {
-        _firstNameController.text = shipping['firstName'] ?? '';
-        _lastNameController.text = shipping['lastName'] ?? '';
-        _emailController.text =
-            shipping['email'] ?? data['email'] ?? authUser?.email ?? '';
-        _phoneController.text = shipping['phone'] ?? '';
-        _secondaryPhoneController.text = shipping['secondaryPhone'] ?? '';
-        _postalCodeController.text = shipping['postalCode'] ?? '';
-        _addressController.text = shipping['address'] ?? '';
-        _cityController.text = shipping['city'] ?? '';
+        _fullNameController.text = registeredName;
+        _emailController.text = registeredEmail;
+
+        _phone = loadedPhone;
+        _secondaryPhone = loadedSecondaryPhone;
+        _country = loadedCountry;
+        _state = loadedState;
+        _city = loadedCity;
+        _postalCodeController.text = loadedPostalCode;
+        _addressController.text = loadedAddress;
+
+        _profileLoaded = true;
       });
     } catch (e) {
-      debugPrint('Error loading saved shipping info: $e');
+      debugPrint('Error loading user registration info: $e');
     }
   }
 
-  // Shipping info ko Firestore mein save karne ka function
+  T? _findByName<T>(List<T> list, String target, String Function(T) nameOf) {
+    if (target.trim().isEmpty || list.isEmpty) return null;
+    final cleanTarget = target.trim().toLowerCase();
+
+    for (final item in list) {
+      if (nameOf(item).trim().toLowerCase() == cleanTarget) return item;
+    }
+    for (final item in list) {
+      final n = nameOf(item).trim().toLowerCase();
+      if (n.contains(cleanTarget) || cleanTarget.contains(n)) return item;
+    }
+    return null;
+  }
+
+  Future<void> _hydrateLocationFromSavedNames() async {
+    if (_country.isEmpty || _countries.isEmpty) {
+      debugPrint(
+        'Location hydrate skipped: country="$_country", '
+        'countries loaded=${_countries.length}',
+      );
+      return;
+    }
+
+    final matchedCountry = _findByName(_countries, _country, (c) => c.name);
+    debugPrint(
+      'Matching saved country "$_country" -> '
+      '${matchedCountry?.name ?? "NO MATCH FOUND"}',
+    );
+
+    if (matchedCountry == null) {
+      if (mounted) setState(() => _locationHydrated = true);
+      return;
+    }
+
+    setState(() {
+      _selectedCountryIso = matchedCountry.isoCode;
+      _country = matchedCountry.name;
+      _loadingStates = true;
+    });
+
+    final states = await csc.getStatesOfCountry(matchedCountry.isoCode);
+    if (!mounted) return;
+
+    setState(() {
+      _states = states;
+      _loadingStates = false;
+    });
+
+    final matchedState = _findByName(states, _state, (s) => s.name);
+    debugPrint(
+      'Matching saved state "$_state" -> '
+      '${matchedState?.name ?? "NO MATCH FOUND"} '
+      '(${states.length} states available for ${matchedCountry.name})',
+    );
+
+    if (matchedState != null) {
+      setState(() {
+        _selectedStateIso = matchedState.isoCode;
+        _state = matchedState.name;
+        _loadingCities = true;
+      });
+
+      final cities = await csc.getStateCities(
+        matchedCountry.isoCode,
+        matchedState.isoCode,
+      );
+      if (!mounted) return;
+
+      final matchedCity = _findByName(cities, _city, (c) => c.name);
+
+      setState(() {
+        _cities = cities;
+        _loadingCities = false;
+        if (matchedCity != null) {
+          _selectedCityName = matchedCity.name;
+          _city = matchedCity.name;
+        }
+        _locationHydrated = true;
+      });
+    } else {
+      if (mounted) setState(() => _locationHydrated = true);
+    }
+  }
+
+  Future<void> _onCountryChanged(String? isoCode) async {
+    if (isoCode == null) return;
+    final country = _countries.firstWhere((c) => c.isoCode == isoCode);
+
+    setState(() {
+      _selectedCountryIso = isoCode;
+      _country = country.name;
+
+      _selectedStateIso = null;
+      _state = '';
+      _states = [];
+
+      _selectedCityName = null;
+      _city = '';
+      _cities = [];
+
+      _loadingStates = true;
+    });
+
+    final states = await csc.getStatesOfCountry(isoCode);
+    if (!mounted) return;
+    setState(() {
+      _states = states;
+      _loadingStates = false;
+    });
+  }
+
+  Future<void> _onStateChanged(String? isoCode) async {
+    if (isoCode == null || _selectedCountryIso == null) return;
+    final state = _states.firstWhere((s) => s.isoCode == isoCode);
+
+    setState(() {
+      _selectedStateIso = isoCode;
+      _state = state.name;
+
+      _selectedCityName = null;
+      _city = '';
+      _cities = [];
+
+      _loadingCities = true;
+    });
+
+    final cities = await csc.getStateCities(_selectedCountryIso!, isoCode);
+    if (!mounted) return;
+    setState(() {
+      _cities = cities;
+      _loadingCities = false;
+    });
+  }
+
+  void _onCityChanged(String? cityName) {
+    if (cityName == null) return;
+    setState(() {
+      _selectedCityName = cityName;
+      _city = cityName;
+    });
+  }
+
+  String _stripDialCode(String fullNumber, String dialCode) {
+    if (fullNumber.isEmpty) return '';
+    if (fullNumber.startsWith(dialCode)) {
+      return fullNumber.substring(dialCode.length);
+    }
+    return fullNumber;
+  }
+
   Future<void> _saveShippingInfoToDatabase() async {
     if (!_isSavingInfo) return;
     try {
@@ -94,14 +306,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           .doc(widget.userId)
           .set({
             'shippingAddress': {
-              'firstName': _firstNameController.text.trim(),
-              'lastName': _lastNameController.text.trim(),
-              'email': _emailController.text.trim(),
-              'phone': _phoneController.text.trim(),
-              'secondaryPhone': _secondaryPhoneController.text.trim(),
+              'phone': _phone,
+              'secondaryPhone': _secondaryPhone,
+              'country': _country,
+              'state': _state,
+              'city': _city,
               'postalCode': _postalCodeController.text.trim(),
               'address': _addressController.text.trim(),
-              'city': _cityController.text.trim(),
             },
           }, SetOptions(merge: true));
     } catch (e) {
@@ -111,6 +322,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Future<void> _handleCheckout() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_country.isEmpty || _state.isEmpty || _city.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please select your Country, State, and City'),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -119,13 +340,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       await OrderService.instance.placeOrder(
         userId: widget.userId,
-        firstName: _firstNameController.text,
-        lastName: _lastNameController.text,
+        fullName: _fullNameController.text,
         email: _emailController.text,
-        phone: _phoneController.text,
-        secondaryPhone: _secondaryPhoneController.text,
+        phone: _phone,
+        secondaryPhone: _secondaryPhone,
+        country: _country,
+        state: _state,
+        city: _city,
         address: _addressController.text,
-        city: _cityController.text,
         postalCode: _postalCodeController.text,
         deliveryMode: _selectedDeliveryMode,
         cartItems: widget.cartItems,
@@ -176,22 +398,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   @override
   void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
+    _fullNameController.dispose();
     _emailController.dispose();
-    _phoneController.dispose();
-    _secondaryPhoneController.dispose();
     _postalCodeController.dispose();
     _addressController.dispose();
-    _cityController.dispose();
     super.dispose();
   }
 
-  InputDecoration _buildInputDecoration(String label, IconData icon) {
+  InputDecoration _buildInputDecoration(
+    String label,
+    IconData icon, {
+    Widget? suffixIcon,
+  }) {
     return InputDecoration(
       labelText: label,
       labelStyle: TextStyle(color: Colors.grey.shade600, fontSize: 14),
       prefixIcon: Icon(icon, color: AppColors.primaryDark, size: 20),
+      suffixIcon: suffixIcon,
       filled: true,
       fillColor: Colors.grey.shade50,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -211,6 +434,84 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: Colors.redAccent, width: 1),
       ),
+    );
+  }
+
+  Widget _loadingSuffix() => const Padding(
+        padding: EdgeInsets.all(12),
+        child: SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+
+  Widget _buildCountryDropdown() {
+    return DropdownButtonFormField<String>(
+      key: ValueKey('countryDropdown-$_locationHydrated'),
+      isExpanded: true,
+      initialValue: _selectedCountryIso,
+      decoration: _buildInputDecoration(
+        'Country',
+        Icons.public_outlined,
+        suffixIcon: _loadingCountries ? _loadingSuffix() : null,
+      ),
+      hint: const Text('Select Country'),
+      items: _countries
+          .map(
+            (c) => DropdownMenuItem(value: c.isoCode, child: Text(c.name)),
+          )
+          .toList(),
+      onChanged: _loadingCountries ? null : _onCountryChanged,
+      validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+    );
+  }
+
+  Widget _buildStateDropdown() {
+    final enabled = _selectedCountryIso != null && !_loadingStates;
+    return DropdownButtonFormField<String>(
+      key: ValueKey('stateDropdown-$_locationHydrated'),
+      isExpanded: true,
+      initialValue: _selectedStateIso,
+      decoration: _buildInputDecoration(
+        'State',
+        Icons.map_outlined,
+        suffixIcon: _loadingStates ? _loadingSuffix() : null,
+      ),
+      hint: Text(
+        _selectedCountryIso == null ? 'Select country first' : 'Select State',
+      ),
+      items: _states
+          .map(
+            (s) => DropdownMenuItem(value: s.isoCode, child: Text(s.name)),
+          )
+          .toList(),
+      onChanged: enabled ? _onStateChanged : null,
+      validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+    );
+  }
+
+  Widget _buildCityDropdown() {
+    final enabled = _selectedStateIso != null && !_loadingCities;
+    return DropdownButtonFormField<String>(
+      key: ValueKey('cityDropdown-$_locationHydrated'),
+      isExpanded: true,
+      initialValue: _selectedCityName,
+      decoration: _buildInputDecoration(
+        'City',
+        Icons.location_city_outlined,
+        suffixIcon: _loadingCities ? _loadingSuffix() : null,
+      ),
+      hint: Text(
+        _selectedStateIso == null ? 'Select state first' : 'Select City',
+      ),
+      items: _cities
+          .map(
+            (c) => DropdownMenuItem(value: c.name, child: Text(c.name)),
+          )
+          .toList(),
+      onChanged: enabled ? _onCityChanged : null,
+      validator: (v) => v == null || v.isEmpty ? 'Required' : null,
     );
   }
 
@@ -276,99 +577,67 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _firstNameController,
-                            decoration: _buildInputDecoration(
-                              'First Name',
-                              Icons.person_outline,
-                            ),
-                            validator: (v) =>
-                                v == null || v.isEmpty ? 'Required' : null,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextFormField(
-                            controller: _lastNameController,
-                            decoration: _buildInputDecoration(
-                              'Last Name',
-                              Icons.person_outline,
-                            ),
-                            validator: (v) =>
-                                v == null || v.isEmpty ? 'Required' : null,
-                          ),
-                        ),
-                      ],
+                    // Registered Full Name (Read-Only)
+                    TextFormField(
+                      controller: _fullNameController,
+                      readOnly: true,
+                      decoration: _buildInputDecoration(
+                        'Full Name (From Registration)',
+                        Icons.person_outline,
+                      ),
                     ),
                     const SizedBox(height: 14),
+                    // Registered Email (Read-Only)
                     TextFormField(
                       controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
+                      readOnly: true,
                       decoration: _buildInputDecoration(
-                        'Email Address',
+                        'Email Address (From Registration)',
                         Icons.email_outlined,
                       ),
-                      validator: (v) => v == null || !v.contains('@')
-                          ? 'Enter a valid email'
-                          : null,
                     ),
                     const SizedBox(height: 14),
-                    TextFormField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
+                    // Primary Phone Number with IntlPhoneField Package
+                    IntlPhoneField(
+                      key: ValueKey('primaryPhone-$_profileLoaded'),
+                      initialValue: _stripDialCode(_phone, '+92'),
                       decoration: _buildInputDecoration(
                         'Primary Phone Number',
                         Icons.phone_outlined,
                       ),
-                      validator: (v) =>
-                          v == null || v.isEmpty ? 'Required' : null,
+                      initialCountryCode: 'PK',
+                      onChanged: (phone) {
+                        setState(() {
+                          _phone = phone.completeNumber;
+                        });
+                      },
                     ),
                     const SizedBox(height: 14),
-                    TextFormField(
-                      controller: _secondaryPhoneController,
-                      keyboardType: TextInputType.phone,
+                    // Secondary Phone Number with IntlPhoneField Package
+                    IntlPhoneField(
+                      key: ValueKey('secondaryPhone-$_profileLoaded'),
+                      initialValue: _stripDialCode(_secondaryPhone, '+92'),
                       decoration: _buildInputDecoration(
                         'Secondary Phone (Optional)',
                         Icons.phone_android_outlined,
                       ),
+                      initialCountryCode: 'PK',
+                      onChanged: (phone) {
+                        setState(() {
+                          _secondaryPhone = phone.completeNumber;
+                        });
+                      },
                     ),
+                    const SizedBox(height: 14),
+                    _buildCountryDropdown(),
+                    const SizedBox(height: 14),
+                    _buildStateDropdown(),
+                    const SizedBox(height: 14),
+                    _buildCityDropdown(),
                     const SizedBox(height: 14),
                     Row(
                       children: [
                         Expanded(
-                          child: TextFormField(
-                            controller: _addressController,
-                            decoration: _buildInputDecoration(
-                              'Street Address',
-                              Icons.home_outlined,
-                            ),
-                            validator: (v) =>
-                                v == null || v.isEmpty ? 'Required' : null,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: TextFormField(
-                            controller: _cityController,
-                            decoration: _buildInputDecoration(
-                              'City',
-                              Icons.location_city_outlined,
-                            ),
-                            validator: (v) =>
-                                v == null || v.isEmpty ? 'Required' : null,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 1,
                           child: TextFormField(
                             controller: _postalCodeController,
                             keyboardType: TextInputType.number,
@@ -382,8 +651,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: _addressController,
+                      decoration: _buildInputDecoration(
+                        'Street Address',
+                        Icons.home_outlined,
+                      ),
+                      validator: (v) =>
+                          v == null || v.isEmpty ? 'Required' : null,
+                    ),
                     const SizedBox(height: 10),
-                    // Save Info Checkbox option
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text(
@@ -441,29 +719,32 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade200),
-                        borderRadius: BorderRadius.circular(12),
-                        color: Colors.grey.shade50,
-                      ),
-                      child: RadioListTile<String>(
-                        title: const Text(
-                          'Cash on Delivery (COD)',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade200),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: RadioListTile<String>(
+                          tileColor: Colors.grey.shade50,
+                          title: const Text(
+                            'Cash on Delivery (COD)',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
                           ),
+                          subtitle: const Text(
+                            'Pay with cash upon delivery',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                          value: 'Cash on Delivery',
+                          activeColor: AppColors.primaryDark,
+                          groupValue: _selectedDeliveryMode,
+                          onChanged: (val) =>
+                              setState(() => _selectedDeliveryMode = val!),
                         ),
-                        subtitle: const Text(
-                          'Pay with cash upon delivery',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        value: 'Cash on Delivery',
-                        activeColor: AppColors.primaryDark,
-                        groupValue: _selectedDeliveryMode,
-                        onChanged: (val) =>
-                            setState(() => _selectedDeliveryMode = val!),
                       ),
                     ),
                   ],

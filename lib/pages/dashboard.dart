@@ -16,7 +16,6 @@ import 'see_all_products_screen.dart';
 import '../services/auth_wrapper.dart';
 import 'order_progress_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class Dashboard extends StatefulWidget {
   final String userId;

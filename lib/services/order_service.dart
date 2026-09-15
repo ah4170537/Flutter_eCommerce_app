@@ -15,13 +15,14 @@ class OrderService {
 
   Future<void> placeOrder({
     required String userId,
-    required String firstName,
-    required String lastName,
+    required String fullName,
     required String email,
     required String phone,
     required String secondaryPhone,
-    required String address,
+    required String country,
+    required String state,
     required String city,
+    required String address,
     required String postalCode,
     required String deliveryMode,
     required List<Map<String, dynamic>> cartItems,
@@ -30,7 +31,6 @@ class OrderService {
   }) async {
     final total = subtotal + deliveryFee;
     final trimmedEmail = email.trim().toLowerCase();
-    final fullName = '${firstName.trim()} ${lastName.trim()}';
 
     // Save order inside orders -> {userId} -> user_orders subcollection
     final orderRef = _firestore
@@ -39,19 +39,19 @@ class OrderService {
         .collection('user_orders')
         .doc();
 
-
     final String orderId = orderRef.id;
 
     await orderRef.set({
       'orderId': orderId,
       'userId': userId,
-      'firstName': firstName.trim(),
-      'lastName': lastName.trim(),
+      'fullName': fullName.trim(),
       'email': trimmedEmail,
       'phone': phone.trim(),
       'secondaryPhone': secondaryPhone.trim(),
-      'address': address.trim(),
+      'country': country.trim(),
+      'state': state.trim(),
       'city': city.trim(),
+      'address': address.trim(),
       'postalCode': postalCode.trim(),
       'deliveryMode': deliveryMode,
       'items': cartItems,
@@ -99,10 +99,9 @@ class OrderService {
         'template_id': _emailJsTemplateId,
         'user_id': _emailJsPublicKey,
         'template_params': {
-          'to_name': fullName,
+          'to_name': fullName.trim(),
           'to_email': trimmedEmail,
-          'order_address':
-              '${address.trim()}, ${city.trim()}, Postal Code: ${postalCode.trim()}',
+          'order_address': '${address.trim()}, ${city.trim()}, ${state.trim()}, ${country.trim()} (Postal Code: ${postalCode.trim()})',
           'phone': phone.trim(),
           'delivery_mode': deliveryMode,
           'order_items': formattedItems,
