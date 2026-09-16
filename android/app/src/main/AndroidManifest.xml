@@ -16,7 +16,7 @@
         <!-- 1. Add your Google API Key here -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyD32CVJozLWvreJ3ksHloG3WHcu9bwqAZQ" />
+            android:value="" />
 
         <!-- 2. Keep the UCrop Activity for image cropping -->
         <activity
