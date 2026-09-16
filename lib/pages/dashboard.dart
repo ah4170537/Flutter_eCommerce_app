@@ -15,6 +15,7 @@ import 'product_details_screen.dart';
 import 'see_all_products_screen.dart';
 import '../services/auth_wrapper.dart';
 import 'order_progress_screen.dart';
+
 import 'package:cached_network_image/cached_network_image.dart';
 
 class Dashboard extends StatefulWidget {
@@ -29,34 +30,114 @@ class Dashboard extends StatefulWidget {
 class _DashboardState extends State<Dashboard> {
   bool _isLoading = false;
 
-Future<void> _logout(BuildContext context) async {
-  setState(() {
-    _isLoading = true;
-  });
-
-  try {
-    // 1. Sign out cleanly from Firebase Auth
-    await AuthService.instance.signOut();
-
-    if (!context.mounted) return;
-
-    // 2. Navigate back to the auth wrapper and clear the stack
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const AuthWrapper()),
-      (route) => false,
-    );
-  } catch (e) {
-    if (!mounted) return;
+  Future<void> _logout(BuildContext context) async {
     setState(() {
-      _isLoading = false;
+      _isLoading = true;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Logout failed: $e')),
-    );
+
+    try {
+      // 1. Sign out cleanly from Firebase Auth
+      await AuthService.instance.signOut();
+
+      if (!context.mounted) return;
+
+      // 2. Navigate back to the auth wrapper and clear the stack
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const AuthWrapper()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Logout failed: $e')));
+    }
+  }
+
+Future<void> _showLogoutConfirmation(BuildContext context) async {
+  final bool? shouldLogout = await showDialog<bool>(
+    context: context,
+    builder: (BuildContext dialogContext) {
+      return AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.logout_rounded,
+                color: Colors.red.shade700,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Logout',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                color: AppColors.textDark,
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to log out of your account?',
+          style: TextStyle(
+            fontSize: 15,
+            color: AppColors.textGrey,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: AppColors.textGrey,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryDark,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text(
+              'Confirm',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+
+  // If confirmed, call your original _logout function directly
+  if (shouldLogout == true) {
+    if (!context.mounted) return;
+    await _logout(context);
   }
 }
-
   @override
   Widget build(BuildContext context) {
     final User? user = FirebaseAuth.instance.currentUser;
@@ -65,8 +146,8 @@ Future<void> _logout(BuildContext context) async {
     final String userName = isGuest
         ? 'Guest'
         : (user?.displayName ??
-            user?.email?.split('@').first ??
-            AppStrings.userFallback);
+              user?.email?.split('@').first ??
+              AppStrings.userFallback);
     final String userEmail = isGuest
         ? 'Browsing as guest'
         : (user?.email ?? 'No email provided');
@@ -91,9 +172,13 @@ Future<void> _logout(BuildContext context) async {
                         children: [
                           CircleAvatar(
                             radius: 28,
-                            backgroundColor: Colors.white.withValues(alpha: 0.2),
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.2,
+                            ),
                             child: Text(
-                              userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                              userName.isNotEmpty
+                                  ? userName[0].toUpperCase()
+                                  : 'U',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
@@ -163,9 +248,7 @@ Future<void> _logout(BuildContext context) async {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => OrderProgressScreen(
-                                  
-                                ),
+                                builder: (_) => OrderProgressScreen(),
                               ),
                             );
                           },
@@ -232,7 +315,9 @@ Future<void> _logout(BuildContext context) async {
                               Navigator.pop(context);
                               Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (_) => const Login()),
+                                MaterialPageRoute(
+                                  builder: (_) => const Login(),
+                                ),
                               );
                             },
                           ),
@@ -254,7 +339,16 @@ Future<void> _logout(BuildContext context) async {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        onPressed: _isLoading ? null : () => _logout(context),
+                        onPressed: _isLoading
+                            ? null
+                            : () {
+                                Navigator.pop(
+                                  context,
+                                ); // Close the drawer first
+                                _showLogoutConfirmation(
+                                  context,
+                                ); // Show the confirmation popup
+                              },
                         icon: const Icon(Icons.logout_rounded, size: 20),
                         label: const Text(
                           'Logout',
@@ -334,7 +428,8 @@ Future<void> _logout(BuildContext context) async {
                                     ),
                                     const SizedBox(width: 12),
                                     Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           'Welcome back,',
@@ -474,8 +569,9 @@ Future<void> _logout(BuildContext context) async {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      ProductDetailsScreen(productId: productId),
+                                  builder: (_) => ProductDetailsScreen(
+                                    productId: productId,
+                                  ),
                                 ),
                               );
                             },
@@ -500,19 +596,22 @@ Future<void> _logout(BuildContext context) async {
                                         imageUrl: imageUrl,
                                         fit: BoxFit.cover,
                                         memCacheWidth: 400,
-                                        placeholder: (context, url) => Container(
-                                          color: AppColors.hintGrey,
-                                          child: const Center(
-                                            child: SizedBox(
-                                              width: 24,
-                                              height: 24,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: AppColors.primaryDark,
+                                        placeholder: (context, url) =>
+                                            Container(
+                                              color: AppColors.hintGrey,
+                                              child: const Center(
+                                                child: SizedBox(
+                                                  width: 24,
+                                                  height: 24,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: AppColors
+                                                            .primaryDark,
+                                                      ),
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                        ),
                                         errorWidget: (context, url, error) =>
                                             Container(
                                               color: AppColors.hintGrey,
@@ -536,7 +635,9 @@ Future<void> _logout(BuildContext context) async {
                                           color: Colors.black.withValues(
                                             alpha: 0.6,
                                           ),
-                                          borderRadius: BorderRadius.circular(20),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
                                         ),
                                         child: const Row(
                                           children: [
@@ -567,7 +668,9 @@ Future<void> _logout(BuildContext context) async {
                                         decoration: BoxDecoration(
                                           gradient: LinearGradient(
                                             colors: [
-                                              Colors.black.withValues(alpha: 0.85),
+                                              Colors.black.withValues(
+                                                alpha: 0.85,
+                                              ),
                                               Colors.transparent,
                                             ],
                                             begin: Alignment.bottomCenter,
@@ -634,9 +737,7 @@ Future<void> _logout(BuildContext context) async {
           Container(
             color: Colors.black.withValues(alpha: 0.4),
             child: const Center(
-              child: CircularProgressIndicator(
-                color: AppColors.primaryDark,
-              ),
+              child: CircularProgressIndicator(color: AppColors.primaryDark),
             ),
           ),
       ],

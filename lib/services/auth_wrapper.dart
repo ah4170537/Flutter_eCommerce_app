@@ -2,8 +2,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../pages/main_navigation_screen.dart';
-import '../pages/login.dart'; // Import your login screen
+import '../pages/login.dart';
 import '../services/auth_service.dart';
+import '../theme/app_colors.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -13,65 +14,47 @@ class AuthWrapper extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
+        // Show a clean loading screen only while Firebase is initially resolving the connection state
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            backgroundColor: Colors.white,
+            body: Center(
+              child: CircularProgressIndicator(color: AppColors.primaryDark),
+            ),
           );
         }
 
-        if (snapshot.hasData && snapshot.data != null) {
-          final User user = snapshot.data!;
-          return MainNavigationScreen(userId: user.uid);
-        }
-
-        // If they just clicked logout during this session, show the Login screen.
-        // If they close and reopen the app, this resets to false, booting them as a guest!
+        // 1. If the user explicitly logged out, respect it and show the Login screen
         if (AuthService.manualLogoutOccurred) {
           return const Login();
         }
 
-        return const _GuestBootstrapper();
+        // 2. If there is already an active user session (logged-in user or previous guest), show dashboard immediately
+        if (snapshot.hasData && snapshot.data != null) {
+          return MainNavigationScreen(userId: snapshot.data!.uid);
+        }
+
+        // 3. True cold start with no session: trigger anonymous sign-in in the background 
+        // while displaying the blank loading scaffold so no login screen ever flashes.
+        _ensureGuestSession();
+
+        return const Scaffold(
+          backgroundColor: Colors.white,
+          body: Center(
+            child: CircularProgressIndicator(color: AppColors.primaryDark),
+          ),
+        );
       },
     );
   }
-}
 
-class _GuestBootstrapper extends StatefulWidget {
-  const _GuestBootstrapper();
-
-  @override
-  State<_GuestBootstrapper> createState() => _GuestBootstrapperState();
-}
-
-class _GuestBootstrapperState extends State<_GuestBootstrapper> {
-  @override
-  void initState() {
-    super.initState();
-    _signInAsGuestWhenSafe();
-  }
-
-  Future<void> _signInAsGuestWhenSafe() async {
-    int safetyCounter = 0;
-    while (AuthService.isAuthTransitionInProgress && safetyCounter < 50) {
-      await Future.delayed(const Duration(milliseconds: 100));
-      safetyCounter++;
+  void _ensureGuestSession() async {
+    if (FirebaseAuth.instance.currentUser == null && !AuthService.manualLogoutOccurred) {
+      try {
+        await FirebaseAuth.instance.signInAnonymously();
+      } catch (e) {
+        debugPrint('Anonymous sign-in failed: $e');
+      }
     }
-
-    if (!mounted) return;
-
-    if (FirebaseAuth.instance.currentUser != null) return;
-
-    try {
-      await FirebaseAuth.instance.signInAnonymously();
-    } catch (e) {
-      debugPrint('Anonymous sign-in failed: $e');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
-    );
   }
 }

@@ -28,6 +28,9 @@ class OrderService {
     required List<Map<String, dynamic>> cartItems,
     required double subtotal,
     required double deliveryFee,
+    // Optional map-picked coordinates, alongside the text address.
+    double? latitude,
+    double? longitude,
   }) async {
     final total = subtotal + deliveryFee;
     final trimmedEmail = email.trim().toLowerCase();
@@ -53,6 +56,8 @@ class OrderService {
       'city': city.trim(),
       'address': address.trim(),
       'postalCode': postalCode.trim(),
+      'latitude': latitude,
+      'longitude': longitude,
       'deliveryMode': deliveryMode,
       'items': cartItems,
       'subtotal': subtotal,
@@ -62,6 +67,7 @@ class OrderService {
       'createdAt': FieldValue.serverTimestamp(),
     });
 
+    // Clear purchased items from the user's cart
     final batch = _firestore.batch();
     for (final item in cartItems) {
       final String? productId = item['productId'];

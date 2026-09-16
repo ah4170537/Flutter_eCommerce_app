@@ -7,6 +7,7 @@ import 'package:intl_phone_field/intl_phone_field.dart';
 
 import '../services/order_service.dart';
 import '../theme/app_colors.dart';
+import 'location_picker_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
   final String userId;
@@ -43,6 +44,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   final _postalCodeController = TextEditingController();
   final _addressController = TextEditingController();
+
+  // Coordinates picked from the Google Map, kept alongside the text address.
+  double? _selectedLat;
+  double? _selectedLng;
 
   String _selectedDeliveryMode = 'Cash on Delivery';
   bool _isLoading = false;
@@ -81,7 +86,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
 
     await _loadUserRegistrationAndShippingInfo();
-
     await _hydrateLocationFromSavedNames();
   }
 
@@ -108,10 +112,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       String loadedCity = '';
       String loadedPostalCode = '';
       String loadedAddress = '';
+      double? loadedLat;
+      double? loadedLng;
 
       final shipping = data['shippingAddress'] as Map<String, dynamic>?;
       if (shipping != null) {
-
         String rawCountry = (shipping['country'] ?? '').toString().trim();
         final codePrefix = RegExp(r'^[A-Z]{2,3}\s+');
         if (codePrefix.hasMatch(rawCountry)) {
@@ -125,6 +130,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         loadedCity = (shipping['city'] ?? '').toString();
         loadedPostalCode = (shipping['postalCode'] ?? '').toString();
         loadedAddress = (shipping['address'] ?? '').toString();
+
+        final rawLat = shipping['latitude'];
+        final rawLng = shipping['longitude'];
+        if (rawLat is num) loadedLat = rawLat.toDouble();
+        if (rawLng is num) loadedLng = rawLng.toDouble();
       }
 
       if (!mounted) return;
@@ -140,6 +150,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         _city = loadedCity;
         _postalCodeController.text = loadedPostalCode;
         _addressController.text = loadedAddress;
+        _selectedLat = loadedLat;
+        _selectedLng = loadedLng;
 
         _profileLoaded = true;
       });
@@ -164,19 +176,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Future<void> _hydrateLocationFromSavedNames() async {
     if (_country.isEmpty || _countries.isEmpty) {
-      debugPrint(
-        'Location hydrate skipped: country="$_country", '
-        'countries loaded=${_countries.length}',
-      );
       return;
     }
 
     final matchedCountry = _findByName(_countries, _country, (c) => c.name);
-    debugPrint(
-      'Matching saved country "$_country" -> '
-      '${matchedCountry?.name ?? "NO MATCH FOUND"}',
-    );
-
     if (matchedCountry == null) {
       if (mounted) setState(() => _locationHydrated = true);
       return;
@@ -197,12 +200,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     });
 
     final matchedState = _findByName(states, _state, (s) => s.name);
-    debugPrint(
-      'Matching saved state "$_state" -> '
-      '${matchedState?.name ?? "NO MATCH FOUND"} '
-      '(${states.length} states available for ${matchedCountry.name})',
-    );
-
     if (matchedState != null) {
       setState(() {
         _selectedStateIso = matchedState.isoCode;
@@ -290,6 +287,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     });
   }
 
+  // Opens the Google Map picker screen. When the user confirms a location,
+  // fills the Street Address field and stores the raw coordinates.
+  Future<void> _openLocationPicker() async {
+    final result = await Navigator.push<SelectedLocation>(
+      context,
+      MaterialPageRoute(builder: (context) => const LocationPickerScreen()),
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _addressController.text = result.address;
+        _selectedLat = result.latitude;
+        _selectedLng = result.longitude;
+      });
+    }
+  }
+
   String _stripDialCode(String fullNumber, String dialCode) {
     if (fullNumber.isEmpty) return '';
     if (fullNumber.startsWith(dialCode)) {
@@ -313,6 +327,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               'city': _city,
               'postalCode': _postalCodeController.text.trim(),
               'address': _addressController.text.trim(),
+              'latitude': _selectedLat,
+              'longitude': _selectedLng,
             },
           }, SetOptions(merge: true));
     } catch (e) {
@@ -353,6 +369,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         cartItems: widget.cartItems,
         subtotal: widget.subtotal,
         deliveryFee: widget.deliveryFee,
+        latitude: _selectedLat,
+        longitude: _selectedLng,
       );
 
       widget.onOrderCompleted?.call();
@@ -542,6 +560,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ── Shipping Information card ──────────────────────────────
+              // NOTE: this card is a plain Container with a white background
+              // color. The CheckboxListTile below is wrapped in its own
+              // Material so its background/ink-splash paint on that Material
+              // instead of being hidden behind this Container's opaque color.
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -577,27 +600,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    // Registered Full Name (Read-Only)
                     TextFormField(
                       controller: _fullNameController,
-                      
                       decoration: _buildInputDecoration(
                         'Full Name',
                         Icons.person_outline,
                       ),
                     ),
                     const SizedBox(height: 14),
-                    // Registered Email (Read-Only)
                     TextFormField(
                       controller: _emailController,
-                  
                       decoration: _buildInputDecoration(
                         'Email Address',
                         Icons.email_outlined,
                       ),
                     ),
                     const SizedBox(height: 14),
-                    // Primary Phone Number with IntlPhoneField Package
                     IntlPhoneField(
                       key: ValueKey('primaryPhone-$_profileLoaded'),
                       initialValue: _stripDialCode(_phone, '+92'),
@@ -613,7 +631,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       },
                     ),
                     const SizedBox(height: 14),
-                    // Secondary Phone Number with IntlPhoneField Package
                     IntlPhoneField(
                       key: ValueKey('secondaryPhone-$_profileLoaded'),
                       initialValue: _stripDialCode(_secondaryPhone, '+92'),
@@ -657,33 +674,62 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       decoration: _buildInputDecoration(
                         'Street Address',
                         Icons.home_outlined,
+                        suffixIcon: IconButton(
+                          icon: const Icon(
+                            Icons.map_outlined,
+                            color: AppColors.primaryDark,
+                          ),
+                          tooltip: 'Pick on map',
+                          onPressed: _openLocationPicker,
+                        ),
                       ),
                       validator: (v) =>
                           v == null || v.isEmpty ? 'Required' : null,
                     ),
-                    const SizedBox(height: 10),
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text(
-                        'Save this information for future orders',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                    if (_selectedLat != null && _selectedLng != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6, left: 4),
+                        child: Text(
+                          'Pinned: ${_selectedLat!.toStringAsFixed(5)}, '
+                          '${_selectedLng!.toStringAsFixed(5)}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade600,
+                          ),
                         ),
                       ),
-                      value: _isSavingInfo,
-                      activeColor: AppColors.primaryDark,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      onChanged: (val) {
-                        setState(() {
-                          _isSavingInfo = val ?? true;
-                        });
-                      },
+                    const SizedBox(height: 10),
+                    // FIX: CheckboxListTile wrapped in its own Material so
+                    // its ripple/background paints correctly instead of
+                    // being hidden behind the white card Container above.
+                    Material(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      child: CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text(
+                          'Save this information for future orders',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        value: _isSavingInfo,
+                        activeColor: AppColors.primaryDark,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        onChanged: (val) {
+                          setState(() {
+                            _isSavingInfo = val ?? true;
+                          });
+                        },
+                      ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
+
+              // ── Payment & Delivery card ─────────────────────────────────
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -719,31 +765,37 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
+                    // FIX: the tileColor now lives on the Material itself
+                    // (not on an intermediate Container), and the
+                    // RadioListTile no longer sets its own tileColor —
+                    // this is what the original warning was flagging.
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade200),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: RadioListTile<String>(
-                          tileColor: Colors.grey.shade50,
-                          title: const Text(
-                            'Cash on Delivery (COD)',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
+                      child: Material(
+                        color: Colors.grey.shade50,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade200),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: RadioListTile<String>(
+                            title: const Text(
+                              'Cash on Delivery (COD)',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
                             ),
+                            subtitle: const Text(
+                              'Pay with cash upon delivery',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            value: 'Cash on Delivery',
+                            activeColor: AppColors.primaryDark,
+                            groupValue: _selectedDeliveryMode,
+                            onChanged: (val) =>
+                                setState(() => _selectedDeliveryMode = val!),
                           ),
-                          subtitle: const Text(
-                            'Pay with cash upon delivery',
-                            style: TextStyle(fontSize: 12),
-                          ),
-                          value: 'Cash on Delivery',
-                          activeColor: AppColors.primaryDark,
-                          groupValue: _selectedDeliveryMode,
-                          onChanged: (val) =>
-                              setState(() => _selectedDeliveryMode = val!),
                         ),
                       ),
                     ),
@@ -751,6 +803,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+
+              // ── Order Summary card ──────────────────────────────────────
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(

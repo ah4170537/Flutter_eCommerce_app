@@ -16,6 +16,7 @@ import '../widgets/auth_card.dart';
 import '../widgets/registration_details_dialog.dart';
 import 'login.dart';
 import 'main_navigation_screen.dart';
+import 'register_otp_verification.dart'; 
 
 class Register extends StatefulWidget {
   const Register({super.key});
@@ -41,6 +42,8 @@ class _RegisterState extends State<Register> {
     super.dispose();
   }
 
+ // (Keep all your existing imports, class structure, controllers, and dispose methods...)
+
   Future<void> _handleRegister() async {
     if (_nameController.text.trim().isEmpty) {
       _showMessage("Please enter your name");
@@ -61,7 +64,7 @@ class _RegisterState extends State<Register> {
       return;
     }
 
-    // Show popup to collect Phone, Country, State, City, and Address via packages
+    // 1. Show popup to collect Phone, Country, State, City, and Address via packages[cite: 2]
     final RegistrationDetails? details =
         await showRegistrationDetailsDialog(context);
 
@@ -70,55 +73,32 @@ class _RegisterState extends State<Register> {
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      final User? preRegisterUser = FirebaseAuth.instance.currentUser;
-      final bool wasGuest = preRegisterUser?.isAnonymous ?? false;
-      final String? guestUserId = wasGuest ? preRegisterUser?.uid : null;
+      final email = _emailController.text.trim();
 
-      List<Map<String, dynamic>> guestCartItems = [];
-      if (guestUserId != null && guestUserId.isNotEmpty) {
-        guestCartItems =
-            await _cartMergeHelper.captureAndClearGuestCart(guestUserId);
-      }
-
-      final credential = await AuthService.instance.signUp(
-        name: _nameController.text,
-        email: _emailController.text,
-        password: _passwordController.text,
-        phone: details.phone,
-        country: details.country,
-        state: details.state,
-        city: details.city,
-        address: details.address,
-      );
-      
-      await credential.user?.updateDisplayName(_nameController.text.trim());
+      // 2. Send email OTP via AuthService before creating user account[cite: 3]
+      await AuthService.instance.sendEmailOtp(email);
 
       if (!mounted) return;
 
-      final String userId = credential.user?.uid ?? '';
-
-      if (guestCartItems.isNotEmpty) {
-        await _cartMergeHelper.mergeItemsIntoUserCart(
-          newUserId: userId,
-          guestItems: guestCartItems,
-        );
-      }
-
-      if (!mounted) return;
-
-      Navigator.pushAndRemoveUntil(
+      // 3. Navigate to OTP Verification screen, passing form credentials along
+      Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => MainNavigationScreen(userId: userId)),
-        (route) => false,
+        MaterialPageRoute(
+          builder: (_) => RegisterOtpVerification(
+            name: _nameController.text,
+            email: email,
+            password: _passwordController.text,
+            details: details,
+          ),
+        ),
       );
-    } on FirebaseAuthException catch (e) {
-      _showMessage(AuthService.instance.messageForError(e));
-    } catch (_) {
-      _showMessage("Something went wrong. Please try again.");
+    } catch (e) {
+      _showMessage("Failed to send OTP code: $e");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)

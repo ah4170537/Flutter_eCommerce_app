@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../widgets/product_review_section.dart';
-
 import '../constants/app_strings.dart';
 import '../services/cart_service.dart';
 import '../theme/app_colors.dart';
@@ -12,6 +11,7 @@ import '../widgets/quantity_selector.dart';
 import 'recommended_products_section.dart';
 import 'product_image_slider.dart';
 import '../widgets/write_review_sheet.dart';
+import 'main_navigation_screen.dart'; // <--- Added import for navigation
 
 class ProductDetailsScreen extends StatefulWidget {
   final String productId;
@@ -50,357 +50,437 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+
     return Scaffold(
       backgroundColor: AppColors.white,
       body: SafeArea(
-        child: StreamBuilder<DocumentSnapshot>(
-          stream: _productStream,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(color: AppColors.primaryDark),
-              );
-            }
+        child: Stack(
+          children: [
+            StreamBuilder<DocumentSnapshot>(
+              stream: _productStream,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: AppColors.primaryDark),
+                  );
+                }
 
-            if (snapshot.hasError ||
-                !snapshot.hasData ||
-                !snapshot.data!.exists) {
-              return Scaffold(
-                appBar: AppBar(title: const Text('Error')),
-                body: const Center(child: Text('Product not found.')),
-              );
-            }
+                if (snapshot.hasError ||
+                    !snapshot.hasData ||
+                    !snapshot.data!.exists) {
+                  return Scaffold(
+                    appBar: AppBar(title: const Text('Error')),
+                    body: const Center(child: Text('Product not found.')),
+                  );
+                }
 
-            final data = snapshot.data!.data() as Map<String, dynamic>;
-            final String name =
-                data[AppStrings.nameField] ?? AppStrings.defaultProductName;
-            final num price = data[AppStrings.priceField] ?? 0;
+                final data = snapshot.data!.data() as Map<String, dynamic>;
+                final String name =
+                    data[AppStrings.nameField] ?? AppStrings.defaultProductName;
+                final num price = data[AppStrings.priceField] ?? 0;
 
-            final List<dynamic> imageUrlsList = (data['imageUrls'] is List)
-                ? data['imageUrls']
-                : [];
+                final List<dynamic> imageUrlsList = (data['imageUrls'] is List)
+                    ? data['imageUrls']
+                    : [];
 
-            final List<String> effectiveImages = imageUrlsList.isNotEmpty
-                ? imageUrlsList.map((e) => e.toString()).toList()
-                : [data[AppStrings.imageUrlField]?.toString() ?? '']
-                      .where((s) => s.isNotEmpty)
-                      .toList();
+                final List<String> effectiveImages = imageUrlsList.isNotEmpty
+                    ? imageUrlsList.map((e) => e.toString()).toList()
+                    : [data[AppStrings.imageUrlField]?.toString() ?? '']
+                          .where((s) => s.isNotEmpty)
+                          .toList();
 
-            final String description =
-                data['description'] ??
-                'No description available for this product.';
-            final String subCategory = data['subCategory'] ?? '';
+                final String description =
+                    data['description'] ??
+                    'No description available for this product.';
+                final String subCategory = data['subCategory'] ?? '';
 
-            // Extract variants from Firestore safely
-            final List<dynamic> variantsDynamic = data['variants'] ?? [];
-            final List<String> variants =
-                variantsDynamic.map((e) => e.toString()).toList();
+                // Extract variants from Firestore safely
+                final List<dynamic> variantsDynamic = data['variants'] ?? [];
+                final List<String> variants =
+                    variantsDynamic.map((e) => e.toString()).toList();
 
-            // Set a default selected variant if not chosen yet
-            if (variants.isNotEmpty &&
-                (_selectedVariantNotifier.value == null ||
-                    !variants.contains(_selectedVariantNotifier.value))) {
-              _selectedVariantNotifier.value = variants.first;
-            }
+                // Set a default selected variant if not chosen yet
+                if (variants.isNotEmpty &&
+                    (_selectedVariantNotifier.value == null ||
+                        !variants.contains(_selectedVariantNotifier.value))) {
+                  _selectedVariantNotifier.value = variants.first;
+                }
 
-            return CustomScrollView(
-              slivers: [
-                SliverAppBar(
-                  expandedHeight: 320,
-                  pinned: true,
-                  scrolledUnderElevation: 0,
-                  backgroundColor: AppColors.white,
-                  automaticallyImplyLeading: false,
-                  leading: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: CircleAvatar(
-                      backgroundColor: Colors.black.withValues(alpha: 0.4),
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.arrow_back,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ),
-                  ),
-                  flexibleSpace: FlexibleSpaceBar(
-                    background: ProductImageSlider(
-                      effectiveImages: effectiveImages,
-                    ),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: Container(
-                    transform: Matrix4.translationValues(0.0, -20.0, 0.0),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(28),
-                        topRight: Radius.circular(28),
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(24.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Center(
-                            child: Container(
-                              width: 40,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade300,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
+                return CustomScrollView(
+                  slivers: [
+                    SliverAppBar(
+                      expandedHeight: 320,
+                      pinned: true,
+                      scrolledUnderElevation: 0,
+                      backgroundColor: AppColors.white,
+                      automaticallyImplyLeading: false,
+                      leading: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: CircleAvatar(
+                          backgroundColor: Colors.black.withValues(alpha: 0.4),
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.arrow_back,
+                              color: Colors.white,
+                              size: 20,
                             ),
+                            onPressed: () => Navigator.pop(context),
                           ),
-                          const SizedBox(height: 20),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        ),
+                      ),
+                      flexibleSpace: FlexibleSpaceBar(
+                        background: ProductImageSlider(
+                          effectiveImages: effectiveImages,
+                        ),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: Container(
+                        transform: Matrix4.translationValues(0.0, -20.0, 0.0),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(28),
+                            topRight: Radius.circular(28),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
-                                child: Text(
-                                  name,
-                                  style: AppTextStyles.brandTitle.copyWith(
-                                    fontSize: 22,
+                              Center(
+                                child: Container(
+                                  width: 40,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade300,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      name,
+                                      style: AppTextStyles.brandTitle.copyWith(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primaryDark,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    'PKR $price',
+                                    style: const TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              StreamBuilder<DocumentSnapshot>(
+                                stream: FirebaseFirestore.instance
+                                    .collection('reviews')
+                                    .doc(widget.productId)
+                                    .snapshots(),
+                                builder: (context, reviewSnapshot) {
+                                  if (reviewSnapshot.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return Row(
+                                      children: [
+                                        Icon(
+                                          Icons.star,
+                                          color: Colors.amber.withValues(
+                                            alpha: 0.3,
+                                          ),
+                                          size: 18,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        SizedBox(
+                                          width: 60,
+                                          height: 12,
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey.shade200,
+                                              borderRadius: BorderRadius.circular(
+                                                4,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }
+
+                                  double avgRating = 0;
+                                  int reviewCount = 0;
+
+                                  if (reviewSnapshot.hasData &&
+                                      reviewSnapshot.data!.exists) {
+                                    final reviewData =
+                                        reviewSnapshot.data!.data()
+                                            as Map<String, dynamic>?;
+                                    final List<dynamic> reviewsList =
+                                        reviewData?['reviews'] ?? [];
+
+                                    reviewCount = reviewsList.length;
+
+                                    if (reviewCount > 0) {
+                                      final double totalRating = reviewsList.fold(
+                                        0.0,
+                                        (sum, review) {
+                                          final r =
+                                              (review
+                                                  as Map<
+                                                    String,
+                                                    dynamic
+                                                  >)['rating'] ??
+                                              0;
+                                          return sum + (r as num).toDouble();
+                                        },
+                                      );
+                                      avgRating = totalRating / reviewCount;
+                                    }
+                                  }
+
+                                  return Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.star,
+                                        color: Colors.amber,
+                                        size: 18,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        reviewCount > 0
+                                            ? avgRating.toStringAsFixed(1)
+                                            : 'New',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '($reviewCount reviews)',
+                                        style: const TextStyle(
+                                          color: AppColors.textGrey,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+
+                              // --- VARIANTS SELECTION CHIPS ---
+                              if (variants.isNotEmpty) ...[
+                                const SizedBox(height: 20),
+                                const Text(
+                                  'Select Option / Variant',
+                                  style: TextStyle(
+                                    fontSize: 16,
                                     fontWeight: FontWeight.bold,
                                     color: AppColors.primaryDark,
                                   ),
                                 ),
-                              ),
-                              Text(
-                                'PKR $price',
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          StreamBuilder<DocumentSnapshot>(
-                            stream: FirebaseFirestore.instance
-                                .collection('reviews')
-                                .doc(widget.productId)
-                                .snapshots(),
-                            builder: (context, reviewSnapshot) {
-                              if (reviewSnapshot.connectionState ==
-                                  ConnectionState.waiting) {
-                                return Row(
-                                  children: [
-                                    Icon(
-                                      Icons.star,
-                                      color: Colors.amber.withValues(
-                                        alpha: 0.3,
-                                      ),
-                                      size: 18,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    SizedBox(
-                                      width: 60,
-                                      height: 12,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey.shade200,
-                                          borderRadius: BorderRadius.circular(
-                                            4,
+                                const SizedBox(height: 10),
+                                ValueListenableBuilder<String?>(
+                                  valueListenable: _selectedVariantNotifier,
+                                  builder: (context, currentSelectedVariant, child) {
+                                    return Wrap(
+                                      spacing: 8.0,
+                                      runSpacing: 4.0,
+                                      children: variants.map((variant) {
+                                        final bool isSelected =
+                                            currentSelectedVariant == variant;
+                                        return ChoiceChip(
+                                          label: Text(variant),
+                                          selected: isSelected,
+                                          selectedColor: AppColors.primaryDark,
+                                          labelStyle: TextStyle(
+                                            color: isSelected
+                                                ? Colors.white
+                                                : AppColors.primaryDark,
+                                            fontWeight: FontWeight.w500,
                                           ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }
-
-                              double avgRating = 0;
-                              int reviewCount = 0;
-
-                              if (reviewSnapshot.hasData &&
-                                  reviewSnapshot.data!.exists) {
-                                final reviewData =
-                                    reviewSnapshot.data!.data()
-                                        as Map<String, dynamic>?;
-                                final List<dynamic> reviewsList =
-                                    reviewData?['reviews'] ?? [];
-
-                                reviewCount = reviewsList.length;
-
-                                if (reviewCount > 0) {
-                                  final double totalRating = reviewsList.fold(
-                                    0.0,
-                                    (sum, review) {
-                                      final r =
-                                          (review
-                                              as Map<
-                                                String,
-                                                dynamic
-                                              >)['rating'] ??
-                                          0;
-                                      return sum + (r as num).toDouble();
-                                    },
-                                  );
-                                  avgRating = totalRating / reviewCount;
-                                }
-                              }
-
-                              return Row(
-                                children: [
-                                  const Icon(
-                                    Icons.star,
-                                    color: Colors.amber,
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    reviewCount > 0
-                                        ? avgRating.toStringAsFixed(1)
-                                        : 'New',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    '($reviewCount reviews)',
-                                    style: const TextStyle(
-                                      color: AppColors.textGrey,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-
-                          // --- VARIANTS SELECTION CHIPS ---
-                          if (variants.isNotEmpty) ...[
-                            const SizedBox(height: 20),
-                            const Text(
-                              'Select Option / Variant',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.primaryDark,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            ValueListenableBuilder<String?>(
-                              valueListenable: _selectedVariantNotifier,
-                              builder: (context, currentSelectedVariant, child) {
-                                return Wrap(
-                                  spacing: 8.0,
-                                  runSpacing: 4.0,
-                                  children: variants.map((variant) {
-                                    final bool isSelected =
-                                        currentSelectedVariant == variant;
-                                    return ChoiceChip(
-                                      label: Text(variant),
-                                      selected: isSelected,
-                                      selectedColor: AppColors.primaryDark,
-                                      labelStyle: TextStyle(
-                                        color: isSelected
-                                            ? Colors.white
-                                            : AppColors.primaryDark,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                      backgroundColor: Colors.grey.shade100,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        side: BorderSide(
-                                          color: isSelected
-                                              ? AppColors.primaryDark
-                                              : Colors.grey.shade300,
-                                        ),
-                                      ),
-                                      onSelected: (selected) {
-                                        if (selected) {
-                                          _selectedVariantNotifier.value = variant;
-                                        }
-                                      },
+                                          backgroundColor: Colors.grey.shade100,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                            side: BorderSide(
+                                              color: isSelected
+                                                  ? AppColors.primaryDark
+                                                  : Colors.grey.shade300,
+                                            ),
+                                          ),
+                                          onSelected: (selected) {
+                                            if (selected) {
+                                              _selectedVariantNotifier.value = variant;
+                                            }
+                                          },
+                                        );
+                                      }).toList(),
                                     );
-                                  }).toList(),
-                                );
-                              },
-                            ),
-                          ],
+                                  },
+                                ),
+                              ],
 
-                          const SizedBox(height: 24),
-                          const Text(
-                            'Description',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primaryDark,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            description,
-                            style: const TextStyle(
-                              color: AppColors.textGrey,
-                              fontSize: 14,
-                              height: 1.5,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          QuantitySelector(
-                            initialQuantity: _selectedQuantity,
-                            onChanged: (newQuantity) {
-                              _selectedQuantity = newQuantity;
-                            },
-                          ),
-                          const SizedBox(height: 24),
-
-                          RecommendedProductsSection(
-                            subCategory: subCategory,
-                            currentProductId: widget.productId,
-                          ),
-                          const SizedBox(height: 24),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
+                              const SizedBox(height: 24),
                               const Text(
-                                'Reviews',
+                                'Description',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.primaryDark,
                                 ),
                               ),
-                              TextButton.icon(
-                                onPressed: () => showModalBottomSheet(
-                                  context: context,
-                                  isScrollControlled: true,
-                                  backgroundColor: Colors.transparent,
-                                  builder: (_) => WriteReviewSheet(
-                                    productId: widget.productId,
-                                  ),
+                              const SizedBox(height: 8),
+                              Text(
+                                description,
+                                style: const TextStyle(
+                                  color: AppColors.textGrey,
+                                  fontSize: 14,
+                                  height: 1.5,
                                 ),
-                                icon: const Icon(
-                                  Icons.rate_review_outlined,
-                                  size: 18,
-                                ),
-                                label: const Text('Write a Review'),
                               ),
+                              const SizedBox(height: 24),
+
+                              QuantitySelector(
+                                initialQuantity: _selectedQuantity,
+                                onChanged: (newQuantity) {
+                                  _selectedQuantity = newQuantity;
+                                },
+                              ),
+                              const SizedBox(height: 24),
+
+                              RecommendedProductsSection(
+                                subCategory: subCategory,
+                                currentProductId: widget.productId,
+                              ),
+                              const SizedBox(height: 24),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Reviews',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primaryDark,
+                                    ),
+                                  ),
+                                  TextButton.icon(
+                                    onPressed: () => showModalBottomSheet(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (_) => WriteReviewSheet(
+                                        productId: widget.productId,
+                                      ),
+                                    ),
+                                    icon: const Icon(
+                                      Icons.rate_review_outlined,
+                                      size: 18,
+                                    ),
+                                    label: const Text('Write a Review'),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+
+                              ProductReviewsSection(productId: widget.productId),
                             ],
                           ),
-                          const SizedBox(height: 8),
-
-                          ProductReviewsSection(productId: widget.productId),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ],
-            );
-          },
+                  ],
+                );
+              },
+            ),
+
+            // --- FLOATING CART BUTTON IN UPPER RIGHT CORNER ---
+            Positioned(
+              top: 12,
+              right: 16,
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('cart')
+                    .doc(currentUserId)
+                    .collection('user_cart')
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  int cartCount = 0;
+                  if (snapshot.hasData) {
+                    cartCount = snapshot.data!.docs.length;
+                  }
+
+                  return CircleAvatar(
+                    backgroundColor: Colors.black.withValues(alpha: 0.5),
+                    child: IconButton(
+                      icon: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          const Icon(
+                            Icons.shopping_cart_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          if (cartCount > 0)
+                            Positioned(
+                              right: -6,
+                              top: -6,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 16,
+                                  minHeight: 16,
+                                ),
+                                child: Text(
+                                  '$cartCount',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      onPressed: () {
+                        if (currentUserId.isNotEmpty) {
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => MainNavigationScreen(
+                                userId: currentUserId,
+                                initialIndex: 1, // Redirects to Cart tab
+                              ),
+                            ),
+                            (route) => false,
+                          );
+                        }
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: SafeArea(
@@ -466,7 +546,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                               ? effectiveImages[0]
                               : '';
 
-                          // Optional: grab the active variant if needed for cart logic
                           final String? chosenVariant =
                               _selectedVariantNotifier.value;
 

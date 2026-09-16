@@ -17,6 +17,7 @@ class AuthService {
 
   static bool isAuthTransitionInProgress = false;
   static bool manualLogoutOccurred = false;
+  static bool isInitialized = false;
 
   // EmailJS Credentials
   static const String _emailJsServiceId = 'service_3a778zs';
@@ -89,15 +90,16 @@ class AuthService {
       isAuthTransitionInProgress = false;
     }
   }
+ 
   Future<void> signOut() async {
-  manualLogoutOccurred = true; 
-  try {
-    await _auth.signOut();
-  } finally {
-   isAuthTransitionInProgress = false;
+    manualLogoutOccurred = true;
+    isAuthTransitionInProgress = true;
+    try {
+      await _auth.signOut();
+    } finally {
+      isAuthTransitionInProgress = false;
+    }
   }
-}
-
  
 
   Future<bool> checkEmailExists(String email) async {
