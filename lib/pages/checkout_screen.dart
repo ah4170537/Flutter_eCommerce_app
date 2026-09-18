@@ -1,4 +1,4 @@
-import 'package:authentication_module/pages/main_navigation_screen.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,6 +8,8 @@ import 'package:intl_phone_field/intl_phone_field.dart';
 import '../services/order_service.dart';
 import '../theme/app_colors.dart';
 import 'location_picker_screen.dart';
+import 'order_detail_screen.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 class CheckoutScreen extends StatefulWidget {
   final String userId;
@@ -336,83 +338,87 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
-  Future<void> _handleCheckout() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_country.isEmpty || _state.isEmpty || _city.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please select your Country, State, and City'),
-          backgroundColor: Colors.red.shade700,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      await _saveShippingInfoToDatabase();
-
-      await OrderService.instance.placeOrder(
-        userId: widget.userId,
-        fullName: _fullNameController.text,
-        email: _emailController.text,
-        phone: _phone,
-        secondaryPhone: _secondaryPhone,
-        country: _country,
-        state: _state,
-        city: _city,
-        address: _addressController.text,
-        postalCode: _postalCodeController.text,
-        deliveryMode: _selectedDeliveryMode,
-        cartItems: widget.cartItems,
-        subtotal: widget.subtotal,
-        deliveryFee: widget.deliveryFee,
-        latitude: _selectedLat,
-        longitude: _selectedLng,
-      );
-
-      widget.onOrderCompleted?.call();
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Order placed successfully & confirmation email sent!',
-          ),
-          backgroundColor: Colors.green.shade700,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (context) => MainNavigationScreen(
-            userId: FirebaseAuth.instance.currentUser?.uid ?? '',
-          ),
-        ),
-        (route) => false,
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to place order: $e'),
-          backgroundColor: Colors.red.shade700,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+ Future<void> _handleCheckout() async {
+  if (!_formKey.currentState!.validate()) return;
+  if (_country.isEmpty || _state.isEmpty || _city.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Please select your Country, State, and City'),
+        backgroundColor: Colors.red.shade700,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    return;
   }
+
+  setState(() => _isLoading = true);
+
+  try {
+    await _saveShippingInfoToDatabase();
+
+    final String generatedOrderId = await OrderService.instance.placeOrder(
+      userId: widget.userId,
+      fullName: _fullNameController.text,
+      email: _emailController.text,
+      phone: _phone,
+      secondaryPhone: _secondaryPhone,
+      country: _country,
+      state: _state,
+      city: _city,
+      address: _addressController.text,
+      postalCode: _postalCodeController.text,
+      deliveryMode: _selectedDeliveryMode,
+      cartItems: widget.cartItems,
+      subtotal: widget.subtotal,
+      deliveryFee: widget.deliveryFee,
+      latitude: _selectedLat,
+      longitude: _selectedLng,
+    );
+
+    widget.onOrderCompleted?.call();
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Order placed successfully & confirmation email sent!',
+        ),
+        backgroundColor: Colors.green.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+
+    // 2. Navigate to OrderDetailScreen instead of MainNavigationScreen
+    // Using pushAndRemoveUntil ensures that pressing "Back" from the order details 
+    // safely returns the user to the main app dashboard rather than looping back to checkout.
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (context) => OrderDetailScreen(
+          orderId: generatedOrderId,
+          userId: widget.userId,
+        ),
+      ),
+      (route) => route.isFirst, // Keeps your root/main navigation stack beneath it
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Failed to place order: $e'),
+        backgroundColor: Colors.red.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
+  }
+}
 
   @override
   void dispose() {

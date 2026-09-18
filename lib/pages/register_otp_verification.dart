@@ -38,13 +38,15 @@ class _RegisterOtpVerificationState extends State<RegisterOtpVerification> {
   bool _isResending = false;
   final CartMergeHelper _cartMergeHelper = CartMergeHelper();
 
+  // Helper getter to lock everything down universally when either state is busy
+  bool get _isAnyActionRunning => _isLoading || _isResending;
+
   Future<void> _handleVerifyAndRegister() async {
-    if (_code.length != 4) return;
+    if (_code.length != 4 || _isAnyActionRunning) return;
 
     setState(() => _isLoading = true);
 
     try {
-      // 1. Verify the OTP code sent to email
       final isValid = await AuthService.instance.verifyEmailOtp(
         email: widget.email,
         userOtp: _code,
@@ -58,7 +60,6 @@ class _RegisterOtpVerificationState extends State<RegisterOtpVerification> {
         return;
       }
 
-      // 2. If OTP is valid, proceed with guest cart preservation and account creation
       final User? preRegisterUser = FirebaseAuth.instance.currentUser;
       final bool wasGuest = preRegisterUser?.isAnonymous ?? false;
       final String? guestUserId = wasGuest ? preRegisterUser?.uid : null;
@@ -94,7 +95,6 @@ class _RegisterOtpVerificationState extends State<RegisterOtpVerification> {
 
       if (!mounted) return;
 
-      // 3. Successfully registered and logged in -> Navigate to main screen
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => MainNavigationScreen(userId: userId)),
@@ -110,7 +110,7 @@ class _RegisterOtpVerificationState extends State<RegisterOtpVerification> {
   }
 
   Future<void> _handleResendOtp() async {
-    if (_isResending) return;
+    if (_isAnyActionRunning) return;
 
     setState(() => _isResending = true);
 
@@ -133,61 +133,68 @@ class _RegisterOtpVerificationState extends State<RegisterOtpVerification> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.offWhite,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              const GradientHeader(height: 150, logoSize: 50),
-              Transform.translate(
-                offset: const Offset(0, 50),
-                child: AuthCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        AppStrings.otpTitle,
-                        style: AppTextStyles.heading,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "Enter the 4-digit code sent to ${widget.email} to finish registering.",
-                        style: AppTextStyles.subheading,
-                      ),
-                      const SizedBox(height: 35),
-                      OtpInputRow(
-                        onChanged: (code) => setState(() => _code = code),
-                      ),
-                      const SizedBox(height: 35),
-                      SizedBox(
-                        width: double.infinity,
-                        child: PillButton(
-                          text: AppStrings.verify,
-                          backgroundColor: AppColors.primaryLight,
-                          textStyle: AppTextStyles.buttonTextWhite,
-                          isLoading: _isLoading,
-                          onPressed: _code.length == 4
-                              ? _handleVerifyAndRegister
-                              : null,
+    return WillPopScope(
+      onWillPop: () async => !_isAnyActionRunning,
+      child: Scaffold(
+        backgroundColor: AppColors.offWhite,
+        body: SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                const GradientHeader(height: 150, logoSize: 50),
+                Transform.translate(
+                  offset: const Offset(0, 50),
+                  child: AuthCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          AppStrings.otpTitle,
+                          style: AppTextStyles.heading,
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        Text(
+                          "Enter the 4-digit code sent to ${widget.email} to finish registering.",
+                          style: AppTextStyles.subheading,
+                        ),
+                        const SizedBox(height: 35),
+                        OtpInputRow(
+                          onChanged: _isAnyActionRunning
+                              ? (_) {}
+                              : (code) => setState(() => _code = code),
+                        ),
+                        const SizedBox(height: 35),
+                        SizedBox(
+                          width: double.infinity,
+                          child: PillButton(
+                            text: AppStrings.verify,
+                            backgroundColor: AppColors.primaryLight,
+                            textStyle: AppTextStyles.buttonTextWhite,
+                            isLoading: _isLoading,
+                            // Disabled if not 4 digits or if resending/verifying is running
+                            onPressed: (_code.length == 4 && !_isAnyActionRunning)
+                                ? _handleVerifyAndRegister
+                                : null,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 15),
+                const SizedBox(height: 15),
               Padding(
-                padding: const EdgeInsets.only(top: 50),
-                child: AuthFooterLink(
-                  promptText: AppStrings.resendCodePrompt,
-                  actionText: _isResending
-                      ? "Sending..."
-                      : AppStrings.resendCodeAction,
-                  onTap: _handleResendOtp,
-                ),
-              ),
-            ],
+  padding: const EdgeInsets.only(top: 50),
+  child: AuthFooterLink(
+    promptText: AppStrings.resendCodePrompt,
+    actionText: _isResending
+        ? "Sending..."
+        : AppStrings.resendCodeAction,
+
+    onTap: _isAnyActionRunning ? () {} : () => _handleResendOtp(),
+  ),
+),
+              ],
+            ),
           ),
         ),
       ),

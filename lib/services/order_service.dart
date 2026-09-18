@@ -13,7 +13,8 @@ class OrderService {
   static const String _emailJsTemplateId = 'template_elx7tm7';
   static const String _emailJsPublicKey = 'xLJyWo6CV8LvFq26t';
 
-  Future<void> placeOrder({
+
+  Future<String> placeOrder({
     required String userId,
     required String fullName,
     required String email,
@@ -28,7 +29,6 @@ class OrderService {
     required List<Map<String, dynamic>> cartItems,
     required double subtotal,
     required double deliveryFee,
-    // Optional map-picked coordinates, alongside the text address.
     double? latitude,
     double? longitude,
   }) async {
@@ -122,6 +122,9 @@ class OrderService {
     if (response.statusCode != 200) {
       throw Exception('Email delivery failed: ${response.body}');
     }
+
+    // Return the orderId so the checkout screen can navigate to it
+    return orderId;
   }
 
   Future<void> cancelOrder({

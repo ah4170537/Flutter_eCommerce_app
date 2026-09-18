@@ -3,7 +3,6 @@
 
     <uses-permission android:name="android.permission.CAMERA"/>
     
-    <!-- Added Location Permissions -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
@@ -13,12 +12,10 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 
-        <!-- 1. Add your Google API Key here -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="" />
 
-        <!-- 2. Keep the UCrop Activity for image cropping -->
         <activity
             android:name="com.yalantis.ucrop.UCropActivity"
             android:screenOrientation="portrait"

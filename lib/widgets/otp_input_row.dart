@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 
@@ -25,9 +26,31 @@ class _OtpInputRowState extends State<OtpInputRow> {
   @override
   void initState() {
     super.initState();
-    _controllers =
-        List.generate(widget.length, (_) => TextEditingController());
-    _focusNodes = List.generate(widget.length, (_) => FocusNode());
+    _controllers = List.generate(
+      widget.length,
+      (_) => TextEditingController(),
+    );
+    
+    // Initialize FocusNodes with backspace key event handling
+    _focusNodes = List.generate(
+      widget.length,
+      (index) => FocusNode()
+        ..onKeyEvent = (node, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.backspace) {
+            // If current box is empty and we can go back, clear previous box and move back
+            if (_controllers[index].text.isEmpty && index > 0) {
+              _controllers[index - 1].clear();
+              _focusNodes[index - 1].requestFocus();
+              
+              final code = _controllers.map((c) => c.text).join();
+              widget.onChanged?.call(code);
+              return KeyEventResult.handled;
+            }
+          }
+          return KeyEventResult.ignored;
+        },
+    );
   }
 
   @override
@@ -42,14 +65,28 @@ class _OtpInputRowState extends State<OtpInputRow> {
   }
 
   void _handleChange(String value, int index) {
-    if (value.isNotEmpty && index < widget.length - 1) {
-      _focusNodes[index + 1].requestFocus();
+    if (value.isNotEmpty) {
+      // Ensure only the latest character is kept if typed/pasted over
+      final char = value.characters.last;
+      if (_controllers[index].text != char) {
+        _controllers[index].text = char;
+        _controllers[index].selection = TextSelection.fromPosition(
+          const TextPosition(offset: 1),
+        );
+      }
+
+      // Move to next box if available
+      if (index < widget.length - 1) {
+        _focusNodes[index + 1].requestFocus();
+      }
+    } else {
+      // If cleared via normal deletion
+      _controllers[index].clear();
     }
-    if (value.isEmpty && index > 0) {
-      _focusNodes[index - 1].requestFocus();
-    }
+
     final code = _controllers.map((c) => c.text).join();
     widget.onChanged?.call(code);
+    
     if (code.length == widget.length) {
       widget.onCompleted?.call(code);
     }

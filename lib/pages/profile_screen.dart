@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../services/cloudinary_service.dart';
 import '../theme/app_colors.dart';
+import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String userId;
@@ -35,6 +36,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _city = '';
   String _postalCode = '';
   String _address = '';
+  Map<String, dynamic> _rawUserData = {};
 
   @override
   void initState() {
@@ -57,6 +59,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
       final data = doc.data()!;
+      _rawUserData = data;
       final User? authUser = FirebaseAuth.instance.currentUser;
       final shipping = data['shippingAddress'] as Map<String, dynamic>?;
 
@@ -83,6 +86,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _navigateToEditScreen() async {
+    final updated = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditProfileScreen(
+          userId: widget.userId,
+          initialData: {
+            'name': _name,
+            'email': _email,
+            'shippingAddress': _rawUserData['shippingAddress'],
+          },
+        ),
+      ),
+    );
+
+    if (updated == true) {
+      _loadUserProfile();
+    }
+  }
+
   Future<void> _showImageOptionsSheet() async {
     final action = await showModalBottomSheet<String>(
       context: context,
@@ -105,26 +128,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 16),
             if (_profileImageUrl != null)
               ListTile(
-                leading: const Icon(
-                  Icons.visibility_outlined,
-                  color: AppColors.primaryDark,
-                ),
+                leading: const Icon(Icons.visibility_outlined, color: AppColors.primaryDark),
                 title: const Text('View photo'),
                 onTap: () => Navigator.pop(context, 'view'),
               ),
             ListTile(
-              leading: const Icon(
-                Icons.photo_camera_outlined,
-                color: AppColors.primaryDark,
-              ),
+              leading: const Icon(Icons.photo_camera_outlined, color: AppColors.primaryDark),
               title: const Text('Take a photo'),
               onTap: () => Navigator.pop(context, 'camera'),
             ),
             ListTile(
-              leading: const Icon(
-                Icons.photo_library_outlined,
-                color: AppColors.primaryDark,
-              ),
+              leading: const Icon(Icons.photo_library_outlined, color: AppColors.primaryDark),
               title: const Text('Choose from gallery'),
               onTap: () => Navigator.pop(context, 'gallery'),
             ),
@@ -135,7 +149,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (action == null) return;
-
     if (action == 'view') {
       _viewProfilePicture();
     } else if (action == 'camera') {
@@ -178,9 +191,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         maxWidth: 1200,
       );
 
-      if (picked == null) return; // user cancelled
+      if (picked == null) return;
 
-      // Crop the image
       final CroppedFile? croppedFile = await ImageCropper().cropImage(
         sourcePath: picked.path,
         uiSettings: [
@@ -190,7 +202,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             toolbarWidgetColor: Colors.white,
             initAspectRatio: CropAspectRatioPreset.square,
             lockAspectRatio: true,
-            aspectRatioPresets: [CropAspectRatioPreset.square],
           ),
           IOSUiSettings(
             title: 'Crop Profile Picture',
@@ -199,7 +210,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       );
 
-      if (croppedFile == null) return; // user cancelled cropping
+      if (croppedFile == null) return;
 
       setState(() => _isUploadingImage = true);
 
@@ -209,9 +220,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         folder: 'profile_avatars',
       );
 
-      if (uploadedUrl == null) {
-        throw Exception('Upload returned no URL');
-      }
+      if (uploadedUrl == null) throw Exception('Upload returned no URL');
 
       await FirebaseFirestore.instance
           .collection('users')
@@ -258,11 +267,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ? NetworkImage(_profileImageUrl!)
                 : null,
             child: _profileImageUrl == null
-                ? Icon(
-                    Icons.person,
-                    size: 56,
-                    color: Colors.grey.shade400,
-                  )
+                ? Icon(Icons.person, size: 56, color: Colors.grey.shade400)
                 : null,
           ),
           if (_isUploadingImage)
@@ -286,11 +291,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 2),
               ),
-              child: const Icon(
-                Icons.camera_alt,
-                size: 16,
-                color: Colors.white,
-              ),
+              child: const Icon(Icons.camera_alt, size: 16, color: Colors.white),
             ),
           ),
         ],
@@ -298,11 +299,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildInfoCard({
-    required String title,
-    required IconData icon,
-    required List<_InfoRow> rows,
-  }) {
+  Widget _buildUnifiedDetailsCard() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -320,22 +317,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header row with Title and single Edit Button
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: AppColors.primaryDark, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primaryDark,
+              const Row(
+                children: [
+                  Icon(Icons.person_pin_outlined, color: AppColors.primaryDark, size: 22),
+                  SizedBox(width: 8),
+                  Text(
+                    'Account Information',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryDark,
+                    ),
+                  ),
+                ],
+              ),
+              TextButton.icon(
+                onPressed: _navigateToEditScreen,
+                icon: const Icon(Icons.edit_outlined, size: 14, color: AppColors.primaryDark),
+                label: const Text(
+                  'Edit',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryDark),
+                ),
+                style: TextButton.styleFrom(
+                  backgroundColor: AppColors.primaryDark.withValues(alpha: 0.08),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          ...rows.map(_buildInfoRow),
+          const SizedBox(height: 16),
+
+          // Personal Info Section Header
+          const Text(
+            'Personal Details',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryDark,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildInfoRow(_InfoRow(Icons.badge_outlined, 'Full Name', _name)),
+          _buildInfoRow(_InfoRow(Icons.email_outlined, 'Email', _email)),
+          _buildInfoRow(_InfoRow(Icons.phone_outlined, 'Primary Phone', _phone)),
+          _buildInfoRow(_InfoRow(Icons.phone_android_outlined, 'Secondary Phone', _secondaryPhone)),
+
+          
+const SizedBox(height: 10),
+          // Shipping Address Section Header
+          const Text(
+            'Shipping Address',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryDark,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildInfoRow(_InfoRow(Icons.public_outlined, 'Country', _country)),
+          _buildInfoRow(_InfoRow(Icons.map_outlined, 'State', _state)),
+          _buildInfoRow(_InfoRow(Icons.location_city_outlined, 'City', _city)),
+          _buildInfoRow(_InfoRow(Icons.local_post_office_outlined, 'Postal Code', _postalCode)),
+          _buildInfoRow(_InfoRow(Icons.home_outlined, 'Address', _address)),
         ],
       ),
     );
@@ -426,36 +474,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    _buildInfoCard(
-                      title: 'Personal Information',
-                      icon: Icons.person_outline,
-                      rows: [
-                        _InfoRow(Icons.badge_outlined, 'Full Name', _name),
-                        _InfoRow(Icons.email_outlined, 'Email', _email),
-                        _InfoRow(Icons.phone_outlined, 'Primary Phone', _phone),
-                        _InfoRow(
-                          Icons.phone_android_outlined,
-                          'Secondary Phone',
-                          _secondaryPhone,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _buildInfoCard(
-                      title: 'Shipping Address',
-                      icon: Icons.local_shipping_outlined,
-                      rows: [
-                        _InfoRow(Icons.public_outlined, 'Country', _country),
-                        _InfoRow(Icons.map_outlined, 'State', _state),
-                        _InfoRow(Icons.location_city_outlined, 'City', _city),
-                        _InfoRow(
-                          Icons.local_post_office_outlined,
-                          'Postal Code',
-                          _postalCode,
-                        ),
-                        _InfoRow(Icons.home_outlined, 'Address', _address),
-                      ],
-                    ),
+                    // Single unified box containing both sections & one edit button
+                    _buildUnifiedDetailsCard(),
                     const SizedBox(height: 24),
                   ],
                 ),

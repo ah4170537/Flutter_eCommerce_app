@@ -5,7 +5,7 @@ import '../pages/all_reviews_screen.dart'; // Isko agle step mein banayenge
 class ProductReviewsSection extends StatelessWidget {
   final String productId;
 
-  const ProductReviewsSection({Key? key, required this.productId}) : super(key: key);
+  const ProductReviewsSection({super.key, required this.productId});
 
   @override
   Widget build(BuildContext context) {

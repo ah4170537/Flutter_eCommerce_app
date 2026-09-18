@@ -25,8 +25,11 @@ class _OtpVerificationState extends State<OtpVerification> {
   bool _isLoading = false;
   bool _isResending = false;
 
+  // Helper getter to determine if any action is currently running
+  bool get _isAnyActionRunning => _isLoading || _isResending;
+
   Future<void> _handleVerifyOtp() async {
-    if (_code.length != 4) return;
+    if (_code.length != 4 || _isAnyActionRunning) return;
 
     setState(() => _isLoading = true);
 
@@ -54,7 +57,7 @@ class _OtpVerificationState extends State<OtpVerification> {
   }
 
   Future<void> _handleResendOtp() async {
-    if (_isResending) return;
+    if (_isAnyActionRunning) return;
 
     setState(() => _isResending = true);
 
@@ -76,65 +79,78 @@ class _OtpVerificationState extends State<OtpVerification> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.offWhite,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              const GradientHeader(height: 150, logoSize: 50),
-              Transform.translate(
-                offset: const Offset(0, 50),
-                child: AuthCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        AppStrings.otpTitle,
-                        style: AppTextStyles.heading,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        widget.email.isEmpty
-                            ? AppStrings.otpSubtitle
-                            : "Enter the 4-digit code we sent to ${widget.email}",
-                        style: AppTextStyles.subheading,
-                      ),
-                      const SizedBox(height: 35),
-
-                      OtpInputRow(
-                        onChanged: (code) => setState(() => _code = code),
-                      ),
-
-                      const SizedBox(height: 35),
-                      SizedBox(
-                        width: double.infinity,
-                        child: PillButton(
-                          text: AppStrings.verify,
-                          backgroundColor: AppColors.primaryLight,
-                          textStyle: AppTextStyles.buttonTextWhite,
-                          isLoading: _isLoading,
-                          onPressed: _code.length == 4
-                              ? _handleVerifyOtp
-                              : null,
+    return WillPopScope(
+      // Prevent back navigation while operations are executing
+      onWillPop: () async => !_isAnyActionRunning,
+      child: Scaffold(
+        backgroundColor: AppColors.offWhite,
+        body: SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                const GradientHeader(height: 150, logoSize: 50),
+                Transform.translate(
+                  offset: const Offset(0, 50),
+                  child: AuthCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          AppStrings.otpTitle,
+                          style: AppTextStyles.heading,
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        Text(
+                          widget.email.isEmpty
+                              ? AppStrings.otpSubtitle
+                              : "Enter the 4-digit code we sent to ${widget.email}",
+                          style: AppTextStyles.subheading,
+                        ),
+                        const SizedBox(height: 35),
+
+                        // Disable OTP input field row when an action is in progress if supported,
+                        // or rely on buttons locking out interaction.
+                        OtpInputRow(
+                          onChanged: _isAnyActionRunning
+                              ? (_) {}
+                              : (code) => setState(() => _code = code),
+                        ),
+
+                        const SizedBox(height: 35),
+                        SizedBox(
+                          width: double.infinity,
+                          child: PillButton(
+                            text: AppStrings.verify,
+                            backgroundColor: AppColors.primaryLight,
+                            textStyle: AppTextStyles.buttonTextWhite,
+                            isLoading: _isLoading,
+                            // Disabled if code isn't 4 digits OR if resending is ongoing
+                            onPressed:
+                                (_code.length == 4 && !_isAnyActionRunning)
+                                ? _handleVerifyOtp
+                                : null,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 15),
-              Padding(
-                padding: const EdgeInsets.only(top: 50),
-                child: AuthFooterLink(
-                  promptText: AppStrings.resendCodePrompt,
-                  actionText: _isResending
-                      ? "Sending..."
-                      : AppStrings.resendCodeAction,
-                  onTap: _handleResendOtp,
+                const SizedBox(height: 15),
+                Padding(
+                  padding: const EdgeInsets.only(top: 50),
+                  child: AuthFooterLink(
+                    promptText: AppStrings.resendCodePrompt,
+                    actionText: _isResending
+                        ? "Sending..."
+                        : AppStrings.resendCodeAction,
+
+                    onTap: _isAnyActionRunning
+                        ? () {}
+                        : () => _handleResendOtp(),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

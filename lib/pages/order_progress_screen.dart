@@ -136,6 +136,8 @@ class _OrderProgressScreenState extends State<OrderProgressScreen> {
                             final items = primaryData['items'] as List<dynamic>? ?? [];
                             final primaryStatus = primaryData['status'] ?? primaryData['orderStatus'] ?? 'Processing';
 
+                            // Nest the progress subcollection listener so that if the progress doc doesn't exist yet,
+                            // we still successfully display the main order items and status cleanly.
                             return StreamBuilder<DocumentSnapshot>(
                               stream: FirebaseFirestore.instance
                                   .collection('order_progress')
@@ -288,7 +290,7 @@ class _OrderProgressScreenState extends State<OrderProgressScreen> {
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'No progress updates available yet. Your order has been placed successfully.',
+                        'No detailed timeline updates available yet. Your order has been placed successfully.',
                         style: TextStyle(fontSize: 13, color: AppColors.textGrey),
                       ),
                     ),
@@ -388,7 +390,7 @@ class _OrderProgressScreenState extends State<OrderProgressScreen> {
                         ),
                       ),
                     ],
-                    if (description.isNotEmpty) ...[
+                    if(description.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(
                         description,

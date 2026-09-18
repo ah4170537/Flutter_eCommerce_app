@@ -160,7 +160,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 builder: (context, snapshot) {
                   int cartCount = 0;
                   if (snapshot.hasData) {
-                    cartCount = snapshot.data!.docs.length;
+                    for (var doc in snapshot.data!.docs) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final num quantity = data['quantity'] ?? 1;
+                      cartCount += quantity.toInt();
+                    }
                   }
 
                   return GNav(

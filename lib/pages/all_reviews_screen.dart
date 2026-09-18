@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 class AllReviewsScreen extends StatelessWidget {
   final String productId;
 
-  const AllReviewsScreen({Key? key, required this.productId}) : super(key: key);
+  const AllReviewsScreen({super.key, required this.productId});
 
   @override
   Widget build(BuildContext context) {

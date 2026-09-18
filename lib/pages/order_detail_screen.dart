@@ -3,10 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
-
 import '../widgets/cancel_order_button.dart';
 import "order_progress_screen.dart";
 import 'main_navigation_screen.dart';
+import 'receipt_screen.dart'; // Import ReceiptScreen
 
 class OrderDetailScreen extends StatelessWidget {
   final String orderId;
@@ -63,7 +63,6 @@ class OrderDetailScreen extends StatelessWidget {
 
           final status = orderData['status'] ?? 'Pending';
 
-          // Extract and format the date/timestamp
           final dynamic rawTimestamp =
               orderData['createdAt'] ??
               orderData['timestamp'] ??
@@ -89,8 +88,6 @@ class OrderDetailScreen extends StatelessWidget {
                     color: AppColors.textGrey,
                   ),
                 ),
-
-                // Date & Time Display
                 if (formattedDate.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
@@ -101,7 +98,6 @@ class OrderDetailScreen extends StatelessWidget {
                     ),
                   ),
                 ],
-
                 const SizedBox(height: 6),
                 Row(
                   children: [
@@ -132,7 +128,7 @@ class OrderDetailScreen extends StatelessWidget {
                     itemBuilder: (context, index) {
                       final item = items[index] as Map<String, dynamic>;
                       final itemName = item['name'] ?? 'Product';
-                      final String? variant = item['variant']; // Extract variant
+                      final String? variant = item['variant'];
                       final dynamic itemPriceRaw = item['price'] ?? 0;
                       final num itemPrice = (itemPriceRaw is num)
                           ? itemPriceRaw
@@ -287,6 +283,44 @@ class OrderDetailScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
 
+                // ── View Receipt Button ────────────────────────
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ReceiptScreen(
+                            orderId: orderId,
+                            userId: effectiveUserId,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.qr_code_rounded,
+                      color: AppColors.primaryDark,
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.primaryDark),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    label: const Text(
+                      'View Receipt QR',
+                      style: TextStyle(
+                        color: AppColors.primaryDark,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
                 const Divider(),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -302,7 +336,7 @@ class OrderDetailScreen extends StatelessWidget {
                       ),
                       Text(
                         'PKR $totalPrice',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 18,
                           color: Colors.green,
@@ -312,7 +346,6 @@ class OrderDetailScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Reorder Button (Updated to support variant composite keys)
                 SizedBox(
                   width: double.infinity,
                   height: 50,
@@ -346,7 +379,6 @@ class OrderDetailScreen extends StatelessWidget {
                               : (int.tryParse(item['quantity'].toString()) ??
                                     1);
 
-                          // Match unique composite cartDocId used in CartService
                           final String sanitizedVariant = (variant != null && variant.isNotEmpty)
                               ? variant.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')
                               : 'default';

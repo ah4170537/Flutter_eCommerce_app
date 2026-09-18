@@ -5,7 +5,7 @@ import '../theme/app_colors.dart';
 class ProductImageSlider extends StatefulWidget {
   final List<String> effectiveImages;
 
-  const ProductImageSlider({Key? key, required this.effectiveImages}) : super(key: key);
+  const ProductImageSlider({super.key, required this.effectiveImages});
 
   @override
   State<ProductImageSlider> createState() => _ProductImageSliderState();

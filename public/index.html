@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Receipt</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+
+<body class="bg-gray-100 font-sans p-4">
+
+  <div class="max-w-md mx-auto bg-white rounded-2xl shadow-md p-6 mt-6">
+    <div class="text-center pb-4 border-b border-gray-200">
+      <h1 class="text-xl font-bold text-gray-900">Store Receipt</h1>
+      <p id="order-id" class="text-xs text-gray-500 mt-1">Loading order details...</p>
+    </div>
+
+    <div id="loading" class="py-10 text-center text-gray-500">
+      Fetching receipt...
+    </div>
+
+    <div id="receipt-content" class="hidden mt-4 space-y-4">
+      <div>
+        <h3 class="text-sm font-semibold text-gray-700">Customer Details</h3>
+        <p id="cust-name" class="text-sm text-gray-600"></p>
+        <p id="cust-phone" class="text-sm text-gray-600"></p>
+        <p id="cust-address" class="text-sm text-gray-600"></p>
+      </div>
+
+      <div class="border-t border-gray-200 pt-3">
+        <h3 class="text-sm font-semibold text-gray-700 mb-2">Items Purchased</h3>
+        <div id="items-list" class="space-y-2">
+          <!-- Dynamically injected items -->
+        </div>
+      </div>
+
+      <div class="border-t border-gray-200 pt-3 space-y-1">
+        <div class="flex justify-between text-sm text-gray-600">
+          <span>Subtotal</span>
+          <span id="subtotal">PKR 0.00</span>
+        </div>
+        <div class="flex justify-between text-sm text-gray-600">
+          <span>Delivery Fee</span>
+          <span id="delivery">PKR 0.00</span>
+        </div>
+        <div class="flex justify-between text-base font-bold text-gray-900 pt-2 border-t border-gray-100">
+          <span>Total</span>
+          <span id="total" class="text-green-600">PKR 0.00</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyA5j5cTZWfUEWxT7v-UIFH5TVwwHP2Ckz8",
+      authDomain: "e-commerce-app-bfe73.firebaseapp.com",
+      databaseURL: "https://e-commerce-app-bfe73-default-rtdb.firebaseio.com",
+      projectId: "e-commerce-app-bfe73",
+      storageBucket: "e-commerce-app-bfe73.firebasestorage.app",
+      messagingSenderId: "754296650532",
+      appId: "1:754296650532:web:76b60f63232ef8d42bd1b1",
+      measurementId: "G-C47LSRLQTW"
+    };
+
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const orderId = urlParams.get('id');
+    const uid = urlParams.get('uid');
+
+    console.log("Parsed Order ID:", orderId);
+    console.log("Parsed UID:", uid);
+
+    async function fetchOrderReceipt() {
+      const loadingEl = document.getElementById('loading');
+
+      if (!orderId || !uid) {
+        loadingEl.innerText = 'Missing Order ID or User ID in link.';
+        return;
+      }
+
+      try {
+        // Direct path lookup: orders/{uid}/user_orders/{orderId}
+        const docRef = db.collection('orders').doc(uid).collection('user_orders').doc(orderId);
+        const docSnap = await docRef.get();
+
+        if (!docSnap.exists) {
+          loadingEl.innerText = 'Order not found in database.';
+          return;
+        }
+
+        const orderData = docSnap.data();
+        console.log("Order Data fetched successfully:", orderData);
+
+        // Populate fields
+        document.getElementById('order-id').innerText = `Order ID: ${orderId}`;
+        document.getElementById('cust-name').innerText = orderData.fullName || orderData.name || 'N/A';
+        document.getElementById('cust-phone').innerText = orderData.phone || 'N/A';
+        document.getElementById('cust-address').innerText = `${orderData.address || ''}, ${orderData.city || ''}`;
+
+        const subtotal = Number(orderData.subtotal) || 0;
+        const deliveryFee = Number(orderData.deliveryFee) || 0;
+
+        document.getElementById('subtotal').innerText = `PKR ${subtotal.toFixed(2)}`;
+        document.getElementById('delivery').innerText = `PKR ${deliveryFee.toFixed(2)}`;
+        document.getElementById('total').innerText = `PKR ${(subtotal + deliveryFee).toFixed(2)}`;
+
+        const itemsContainer = document.getElementById('items-list');
+        itemsContainer.innerHTML = '';
+
+        // Handle possible field names for items array ('items' or 'cartItems')
+        const items = orderData.items || orderData.cartItems || [];
+        if (items.length > 0) {
+          items.forEach(item => {
+            const itemName = item.name || 'Product';
+            const itemQty = Number(item.quantity) || 1;
+            const itemPrice = Number(item.price) || 0;
+
+            itemsContainer.innerHTML += `
+              <div class="flex justify-between text-sm text-gray-600">
+                <span>${itemName} (x${itemQty})</span>
+                <span class="font-medium">PKR ${itemPrice * itemQty}</span>
+              </div>
+            `;
+          });
+        } else {
+          itemsContainer.innerHTML = '<p class="text-xs text-gray-400">No items listed for this order.</p>';
+        }
+
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('receipt-content').classList.remove('hidden');
+
+      } catch (error) {
+        console.error('Firestore Fetch Error:', error);
+        loadingEl.innerText = 'Error loading receipt: ' + error.message;
+      }
+    }
+
+    fetchOrderReceipt();
+  </script>
+</body>
+
+</html>

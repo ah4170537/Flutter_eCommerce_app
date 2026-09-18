@@ -39,7 +39,11 @@ void main() async {
       'price': 3000,
       'category': 'featured',
       'subCategory': 'headphones',
-      'variants': ['Matte Black', 'Silver Gray', 'Navy Blue'],
+      'variants': [
+        {'name': 'Matte Black', 'price': 3000},
+        {'name': 'Silver Gray', 'price': 3200},
+        {'name': 'Navy Blue', 'price': 3500},
+      ],
       'imagePaths': [
         'assets/products/headphones.jpg',
         'assets/products/headphones1.jpg',
@@ -53,7 +57,11 @@ void main() async {
       'price': 250000,
       'category': 'featured',
       'subCategory': 'camera',
-      'variants': ['18-55mm Lens Kit', 'Body Only', '50mm Prime Kit'],
+      'variants': [
+        {'name': 'Body Only', 'price': 250000},
+        {'name': '18-55mm Lens Kit', 'price': 280000},
+        {'name': '50mm Prime Kit', 'price': 295000},
+      ],
       'imagePaths': [
         'assets/products/camera.jpg',
         'assets/products/camera1.jpg',
@@ -67,7 +75,11 @@ void main() async {
       'price': 150000,
       'category': 'featured',
       'subCategory': 'laptop',
-      'variants': ['16GB / 512GB SSD', '16GB / 1TB SSD', '32GB / 1TB SSD'],
+      'variants': [
+        {'name': '16GB / 512GB SSD', 'price': 150000},
+        {'name': '16GB / 1TB SSD', 'price': 175000},
+        {'name': '32GB / 1TB SSD', 'price': 200000},
+      ],
       'imagePaths': [
         'assets/products/laptop.png',
         'assets/products/laptop1.png',
@@ -81,7 +93,10 @@ void main() async {
       'price': 50000,
       'category': 'featured',
       'subCategory': 'headphones',
-      'variants': ['Standard Edition', 'Studio Pro Edition'],
+      'variants': [
+        {'name': 'Standard Edition', 'price': 50000},
+        {'name': 'Studio Pro Edition', 'price': 58000},
+      ],
       'imagePaths': [
         'assets/products/studio_headphones.jpg',
         'assets/products/studio_headphones1.jpg',
@@ -97,7 +112,11 @@ void main() async {
       'price': 2000,
       'category': 'best_selling',
       'subCategory': 'smartwatch',
-      'variants': ['41mm - Silver', '45mm - Midnight Black', '45mm - Rose Gold'],
+      'variants': [
+        {'name': '41mm - Silver', 'price': 2000},
+        {'name': '45mm - Midnight Black', 'price': 2300},
+        {'name': '45mm - Rose Gold', 'price': 2500},
+      ],
       'imagePaths': [
         'assets/products/smartwatch.jpg',
         'assets/products/smartwatch1.jpg',
@@ -111,7 +130,12 @@ void main() async {
       'price': 25000,
       'category': 'best_selling',
       'subCategory': 'shoes',
-      'variants': ['US 8', 'US 9', 'US 10', 'US 11'],
+      'variants': [
+        {'name': 'US 8', 'price': 25000},
+        {'name': 'US 9', 'price': 25000},
+        {'name': 'US 10', 'price': 26000},
+        {'name': 'US 11', 'price': 27000},
+      ],
       'imagePaths': [
         'assets/products/shoes.jpg',
         'assets/products/shoes1.png',
@@ -125,7 +149,10 @@ void main() async {
       'price': 10000,
       'category': 'best_selling',
       'subCategory': 'headphones',
-      'variants': ['RGB Wired', 'Wireless Edition'],
+      'variants': [
+        {'name': 'RGB Wired', 'price': 10000},
+        {'name': 'Wireless Edition', 'price': 14000},
+      ],
       'imagePaths': [
         'assets/products/gaming_headset.jpg',
         'assets/products/gaming_headset1.jpg',
@@ -139,7 +166,11 @@ void main() async {
       'price': 9000,
       'category': 'best_selling',
       'subCategory': 'perfume',
-      'variants': ['50ml Bottle', '100ml Bottle', '100ml + Travel Spray'],
+      'variants': [
+        {'name': '50ml Bottle', 'price': 7000},
+        {'name': '100ml Bottle', 'price': 9000},
+        {'name': '100ml + Travel Spray', 'price': 11000},
+      ],
       'imagePaths': [
         'assets/products/perfume.png',
         'assets/products/perfume1.png',
@@ -155,7 +186,12 @@ void main() async {
       'price': 8000,
       'category': 'popular',
       'subCategory': 'shoes',
-      'variants': ['UK 7', 'UK 8', 'UK 9', 'UK 10'],
+      'variants': [
+        {'name': 'UK 7', 'price': 8000},
+        {'name': 'UK 8', 'price': 8000},
+        {'name': 'UK 9', 'price': 8500},
+        {'name': 'UK 10', 'price': 9000},
+      ],
       'imagePaths': [
         'assets/products/leather_shoes.jpg',
         'assets/products/leather_shoes1.png',
@@ -169,7 +205,11 @@ void main() async {
       'price': 4000,
       'category': 'popular',
       'subCategory': 'sunglasses',
-      'variants': ['Gold / Green Lens', 'Silver / Blue Lens', 'Black / Smoke Lens'],
+      'variants': [
+        {'name': 'Gold / Green Lens', 'price': 4000},
+        {'name': 'Silver / Blue Lens', 'price': 4200},
+        {'name': 'Black / Smoke Lens', 'price': 4500},
+      ],
       'imagePaths': [
         'assets/products/sunglasses.jpg',
         'assets/products/sunglasses1.jpg',
@@ -183,7 +223,12 @@ void main() async {
       'price': 14000,
       'category': 'popular',
       'subCategory': 'shoes',
-      'variants': ['US 7.5', 'US 8.5', 'US 9.5', 'US 10.5'],
+      'variants': [
+        {'name': 'US 7.5', 'price': 14000},
+        {'name': 'US 8.5', 'price': 14000},
+        {'name': 'US 9.5', 'price': 14500},
+        {'name': 'US 10.5', 'price': 15000},
+      ],
       'imagePaths': [
         'assets/products/puma_sneakers.jpg',
         'assets/products/puma_sneakers1.png',
@@ -197,7 +242,11 @@ void main() async {
       'price': 7000,
       'category': 'popular',
       'subCategory': 'stool',
-      'variants': ['Natural Oak', 'Walnut Brown', 'Matte White'],
+      'variants': [
+        {'name': 'Natural Oak', 'price': 7000},
+        {'name': 'Walnut Brown', 'price': 7500},
+        {'name': 'Matte White', 'price': 7200},
+      ],
       'imagePaths': [
         'assets/products/wooden_stool.jpg',
         'assets/products/wooden_stool1.jpg',
@@ -211,7 +260,10 @@ void main() async {
       'price': 11000,
       'category': 'popular',
       'subCategory': 'smartwatch',
-      'variants': ['Silicone Strap', 'Nylon Loop Strap'],
+      'variants': [
+        {'name': 'Silicone Strap', 'price': 11000},
+        {'name': 'Nylon Loop Strap', 'price': 12500},
+      ],
       'imagePaths': [
         'assets/products/black_watch.jpg',
         'assets/products/black_watch1.png',
@@ -235,7 +287,9 @@ void main() async {
     final num newPrice = product['price'];
     final String newCategory = product['category'];
     final String newSubCategory = product['subCategory'];
-    final List<String> newVariants = List<String>.from(product['variants']);
+    
+    final List<Map<String, dynamic>> newVariants = 
+        List<Map<String, dynamic>>.from(product['variants']);
 
     if (!docSnapshot.exists) {
       // --- CREATE NEW PRODUCT ---
@@ -269,16 +323,28 @@ void main() async {
       final num existingPrice = data['price'] ?? 0;
       final String existingCategory = data['category'] ?? '';
       final String existingSubCategory = data['subCategory'] ?? '';
+      
       final List<dynamic> existingVariantsDynamic = data['variants'] ?? [];
-      final List<String> existingVariants = existingVariantsDynamic.map((e) => e.toString()).toList();
+      final List<Map<String, dynamic>> existingVariants = existingVariantsDynamic
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
       
       final List<dynamic> existingLocalPaths = data['localImagePaths'] ?? [];
       
       bool imagesChanged = existingLocalPaths.length != currentImagePaths.length ||
           !List.generate(existingLocalPaths.length, (i) => existingLocalPaths[i] == currentImagePaths[i]).every((e) => e);
 
-      bool variantsChanged = existingVariants.length != newVariants.length ||
-          !List.generate(existingVariants.length, (i) => existingVariants[i] == newVariants[i]).every((e) => e);
+      // Deep comparison for variant name and price changes
+      bool variantsChanged = existingVariants.length != newVariants.length;
+      if (!variantsChanged) {
+        for (int i = 0; i < existingVariants.length; i++) {
+          if (existingVariants[i]['name'] != newVariants[i]['name'] ||
+              existingVariants[i]['price'] != newVariants[i]['price']) {
+            variantsChanged = true;
+            break;
+          }
+        }
+      }
 
       bool fieldsChanged = existingName != newName ||
           existingDescription != newDescription ||

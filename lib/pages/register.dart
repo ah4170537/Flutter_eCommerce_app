@@ -1,11 +1,8 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../constants/app_strings.dart';
 import '../services/auth_service.dart';
-import '../services/cart_merge_helper.dart';
 import '../utils/validators.dart';
 import '../widgets/gradient_header.dart';
 import '../widgets/pill_button.dart';
@@ -15,7 +12,6 @@ import '../widgets/auth_footer_link.dart';
 import '../widgets/auth_card.dart';
 import '../widgets/registration_details_dialog.dart';
 import 'login.dart';
-import 'main_navigation_screen.dart';
 import 'register_otp_verification.dart'; 
 
 class Register extends StatefulWidget {
@@ -30,7 +26,6 @@ class _RegisterState extends State<Register> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final CartMergeHelper _cartMergeHelper = CartMergeHelper();
   bool _isLoading = false;
 
   @override
@@ -42,7 +37,6 @@ class _RegisterState extends State<Register> {
     super.dispose();
   }
 
- // (Keep all your existing imports, class structure, controllers, and dispose methods...)
 
   Future<void> _handleRegister() async {
     if (_nameController.text.trim().isEmpty) {
@@ -64,9 +58,13 @@ class _RegisterState extends State<Register> {
       return;
     }
 
-    // 1. Show popup to collect Phone, Country, State, City, and Address via packages[cite: 2]
+    // 1. Navigate to the details page to collect Phone, Country, State,
+    //    City, and Address (previously a popup, now its own screen).
     final RegistrationDetails? details =
-        await showRegistrationDetailsDialog(context);
+        await Navigator.push<RegistrationDetails>(
+      context,
+      MaterialPageRoute(builder: (_) => const RegistrationDetailsPage()),
+    );
 
     if (details == null) return;
 
