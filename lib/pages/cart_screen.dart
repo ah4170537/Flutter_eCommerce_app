@@ -98,23 +98,45 @@ class _CartScreenState extends State<CartScreen> {
           for (var doc in docs) {
             final data = doc.data();
             final productId = doc.id;
-            final num price = data['price'] ?? 0;
-            final num quantity = data['quantity'] ?? 1;
+            final num basePrice = data['price'] ?? 0;
             final String? variant = data['variant'];
+            
+            final List<dynamic> partsDynamic = data['parts'] is List ? data['parts'] : [];
+            final bool hasPartsListField = data.containsKey('parts');
+            final num mainQuantity = data['quantity'] ?? 1;
 
             final bool isSelected = !_deselectedIds.contains(productId);
+
+            // Calculate parts subtotal
+            num partsSubtotal = 0;
+            for (var part in partsDynamic) {
+              if (part is Map) {
+                final num pPrice = part['price'] ?? 0;
+                final int pQty = part['quantity'] ?? 1;
+                partsSubtotal += (pPrice * pQty);
+              }
+            }
+
+            // Calculate total item cost: Base product price + parts subtotal
+            num itemTotal = 0;
+            if (hasPartsListField) {
+              itemTotal = (basePrice * mainQuantity) + partsSubtotal;
+            } else {
+              itemTotal = basePrice * mainQuantity;
+            }
 
             final itemMap = {
               'productId': productId,
               'name': data['name'] ?? 'Product',
-              'price': price,
-              'quantity': quantity,
+              'price': basePrice,
+              'quantity': mainQuantity,
               'imageUrl': data['imageUrl'] ?? '',
               'variant': variant,
+              'parts': partsDynamic,
             };
 
             if (isSelected) {
-              subtotal += price * quantity;
+              subtotal += itemTotal;
               selectedCartItems.add(itemMap);
             }
           }
@@ -148,7 +170,6 @@ class _CartScreenState extends State<CartScreen> {
                                 });
 
                                 try {
-                                  // Perform deletions concurrently without shifting list items abruptly
                                   await Future.wait(
                                     selectedCartItems.map((item) => _cartService.removeFromCart(
                                           userId: widget.userId,
@@ -197,11 +218,32 @@ class _CartScreenState extends State<CartScreen> {
                     final num price = data['price'] ?? 0;
                     final String imageUrl = data['imageUrl'] ?? '';
                     final String? variant = data['variant'];
+                    
+                    final List<dynamic> partsDynamic = data['parts'] is List ? data['parts'] : [];
+                    final bool hasPartsListField = data.containsKey('parts');
+                    final bool hasParts = partsDynamic.isNotEmpty;
+                    
                     final dynamic rawQty = data['quantity'] ?? 1;
                     final int quantity = (rawQty is num)
                         ? rawQty.toInt()
                         : (int.tryParse(rawQty.toString()) ?? 1);
+                    
                     final bool isSelected = !_deselectedIds.contains(productId);
+
+                    // Calculate displayed total for this specific box item
+                    num boxPartsSubtotal = 0;
+                    for (var part in partsDynamic) {
+                      if (part is Map) {
+                        boxPartsSubtotal += ((part['price'] ?? 0) * (part['quantity'] ?? 1));
+                      }
+                    }
+
+                    num boxItemTotal = 0;
+                    if (hasPartsListField) {
+                      boxItemTotal = (price * quantity) + boxPartsSubtotal;
+                    } else {
+                      boxItemTotal = price * quantity;
+                    }
 
                     return Opacity(
                       opacity: _isDeletingSelected && isSelected ? 0.6 : 1.0,
@@ -217,159 +259,284 @@ class _CartScreenState extends State<CartScreen> {
                                 : Colors.grey.shade200,
                           ),
                         ),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Checkbox(
-                              value: isSelected,
-                              activeColor: AppColors.primaryDark,
-                              onChanged: _isDeletingSelected
-                                  ? null
-                                  : (bool? value) {
-                                      setState(() {
-                                        if (value == true) {
-                                          _deselectedIds.remove(productId);
-                                        } else {
-                                          _deselectedIds.add(productId);
-                                        }
-                                      });
-                                    },
-                            ),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: CachedNetworkImage(
-                                imageUrl: imageUrl,
-                                width: 60,
-                                height: 60,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Container(
-                                  width: 60,
-                                  height: 60,
-                                  color: Colors.grey.shade200,
+                            // Main Product Info Row
+                            Row(
+                              children: [
+                                Checkbox(
+                                  value: isSelected,
+                                  activeColor: AppColors.primaryDark,
+                                  onChanged: _isDeletingSelected
+                                      ? null
+                                      : (bool? value) {
+                                          setState(() {
+                                            if (value == true) {
+                                              _deselectedIds.remove(productId);
+                                            } else {
+                                              _deselectedIds.add(productId);
+                                            }
+                                          });
+                                        },
                                 ),
-                                errorWidget: (context, url, error) => Container(
-                                  width: 60,
-                                  height: 60,
-                                  color: Colors.grey.shade200,
-                                  child: const Icon(
-                                    Icons.image_not_supported,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                      color: AppColors.primaryDark,
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: CachedNetworkImage(
+                                    imageUrl: imageUrl,
+                                    width: 60,
+                                    height: 60,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) => Container(
+                                      width: 60,
+                                      height: 60,
+                                      color: Colors.grey.shade200,
                                     ),
-                                  ),
-                                  if (variant != null && variant.isNotEmpty) ...[
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Variant: $variant',
-                                      style: const TextStyle(
+                                    errorWidget: (context, url, error) => Container(
+                                      width: 60,
+                                      height: 60,
+                                      color: Colors.grey.shade200,
+                                      child: const Icon(
+                                        Icons.image_not_supported,
                                         color: Colors.grey,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
                                       ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'PKR $price',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.green,
-                                      fontSize: 14,
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
-                                  Row(
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      InkWell(
-                                        onTap: _isDeletingSelected
-                                            ? null
-                                            : () => _cartService.updateQuantity(
-                                                  userId: widget.userId,
-                                                  productId: productId,
-                                                  newQuantity: quantity - 1,
-                                                ),
-                                        child: Container(
-                                          padding: const EdgeInsets.all(4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
-                                            border: Border.all(
-                                              color: Colors.grey.shade300,
-                                            ),
-                                          ),
-                                          child: const Icon(
-                                            Icons.remove,
-                                            size: 14,
-                                          ),
+                                      Text(
+                                        name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                          color: AppColors.primaryDark,
                                         ),
                                       ),
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12.0,
-                                        ),
-                                        child: Text(
-                                          '$quantity',
+                                      if (variant != null && variant.isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Variant: $variant',
                                           style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
+                                            color: Colors.grey,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
                                           ),
                                         ),
-                                      ),
-                                      InkWell(
-                                        onTap: _isDeletingSelected
-                                            ? null
-                                            : () => _cartService.updateQuantity(
-                                                  userId: widget.userId,
-                                                  productId: productId,
-                                                  newQuantity: quantity + 1,
-                                                ),
-                                        child: Container(
-                                          padding: const EdgeInsets.all(4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
-                                            border: Border.all(
-                                              color: Colors.grey.shade300,
-                                            ),
-                                          ),
-                                          child: const Icon(Icons.add, size: 14),
+                                      ],
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'PKR $boxItemTotal',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.green,
+                                          fontSize: 14,
                                         ),
                                       ),
                                     ],
                                   ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.redAccent,
+                                  ),
+                                  onPressed: _isDeletingSelected
+                                      ? null
+                                      : () => _cartService.removeFromCart(
+                                            userId: widget.userId,
+                                            productId: productId,
+                                          ),
+                                ),
+                              ],
+                            ),
+
+                            // If product template has parts field, manage parts list
+                            if (hasPartsListField) ...[
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8.0),
+                                child: Divider(height: 1),
+                              ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Included Parts & Quantities:',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textDark,
+                                    ),
+                                  ),
+                                  if (!hasParts)
+                                    const Text(
+                                      'No parts selected (Base product only)',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
                                 ],
                               ),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                color: Colors.redAccent,
-                              ),
-                              onPressed: _isDeletingSelected
-                                  ? null
-                                  : () => _cartService.removeFromCart(
-                                        userId: widget.userId,
-                                        productId: productId,
+                              if (hasParts) ...[
+                                const SizedBox(height: 6),
+                                ListView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: partsDynamic.length,
+                                  itemBuilder: (context, partIndex) {
+                                    final partMap = Map<String, dynamic>.from(partsDynamic[partIndex]);
+                                    final String partName = partMap['partName'] ?? 'Part';
+                                    final num partPrice = partMap['price'] ?? 0;
+                                    final int partQty = partMap['quantity'] ?? 1;
+
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 4),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade50,
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
-                            ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  partName,
+                                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                                                ),
+                                                Text(
+                                                  'PKR $partPrice each',
+                                                  style: const TextStyle(fontSize: 10, color: AppColors.textGrey),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Row(
+                                            children: [
+                                              InkWell(
+                                                onTap: _isDeletingSelected
+                                                    ? null
+                                                    : () async {
+                                                        if (partQty <= 0) return;
+
+                                                        partsDynamic[partIndex]['quantity'] = partQty - 1;
+
+                                                        await FirebaseFirestore.instance
+                                                            .collection('cart')
+                                                            .doc(widget.userId)
+                                                            .collection('user_cart')
+                                                            .doc(productId)
+                                                            .update({'parts': partsDynamic});
+                                                      },
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(3),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    borderRadius: BorderRadius.circular(4),
+                                                    border: Border.all(color: Colors.grey.shade300),
+                                                  ),
+                                                  child: const Icon(Icons.remove, size: 12),
+                                                ),
+                                              ),
+                                              Padding(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                                child: Text(
+                                                  '$partQty',
+                                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                                ),
+                                              ),
+                                              InkWell(
+                                                onTap: _isDeletingSelected
+                                                    ? null
+                                                    : () async {
+                                                        partsDynamic[partIndex]['quantity'] = partQty + 1;
+                                                        await FirebaseFirestore.instance
+                                                            .collection('cart')
+                                                            .doc(widget.userId)
+                                                            .collection('user_cart')
+                                                            .doc(productId)
+                                                            .update({'parts': partsDynamic});
+                                                      },
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(3),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    borderRadius: BorderRadius.circular(4),
+                                                    border: Border.all(color: Colors.grey.shade300),
+                                                  ),
+                                                  child: const Icon(Icons.add, size: 12),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ] else ...[
+                              // Standard product quantity controls (Only shown for items that do NOT support parts)
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  InkWell(
+                                    onTap: _isDeletingSelected
+                                        ? null
+                                        : () => _cartService.updateQuantity(
+                                              userId: widget.userId,
+                                              productId: productId,
+                                              newQuantity: quantity - 1,
+                                            ),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: Colors.grey.shade300),
+                                      ),
+                                      child: const Icon(Icons.remove, size: 14),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                                    child: Text(
+                                      '$quantity',
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                  InkWell(
+                                    onTap: _isDeletingSelected
+                                        ? null
+                                        : () => _cartService.updateQuantity(
+                                              userId: widget.userId,
+                                              productId: productId,
+                                              newQuantity: quantity + 1,
+                                            ),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: Colors.grey.shade300),
+                                      ),
+                                      child: const Icon(Icons.add, size: 14),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                       ),

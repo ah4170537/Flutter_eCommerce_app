@@ -167,44 +167,73 @@ class OrdersScreen extends StatelessWidget {
 
                         const SizedBox(height: 10),
                         
-                        // Products list preview with variants
+                        // Products list preview with variants and parts
                         ...items.map((item) {
                           final itemName = item['name'] ?? 'Product';
                           final String? variant = item['variant'];
                           final dynamic rawQty = item['quantity'] ?? 1;
                           final int quantity = (rawQty is num) ? rawQty.toInt() : (int.tryParse(rawQty.toString()) ?? 1);
                           
+                          final List<dynamic> parts = item['parts'] is List ? item['parts'] : [];
+
                           return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 3.0),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
                                         '• $itemName',
-                                        style: const TextStyle(fontSize: 13, color: Colors.black87),
+                                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      if (variant != null && variant.isNotEmpty) ...[
-                                        Padding(
-                                          padding: const EdgeInsets.only(left: 10.0),
-                                          child: Text(
-                                            'Variant: $variant',
+                                    ),
+                                    Text(
+                                      'Qty: $quantity',
+                                      style: const TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w500),
+                                    ),
+                                  ],
+                                ),
+                                if (variant != null && variant.isNotEmpty) ...[
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 12.0, top: 1.0),
+                                    child: Text(
+                                      'Variant: $variant',
+                                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                    ),
+                                  ),
+                                ],
+                                // Render selected parts list if present
+                                if (parts.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  ...parts.map((part) {
+                                    final partMap = part is Map ? part : {};
+                                    final String partName = partMap['partName'] ?? 'Part';
+                                    final dynamic partQtyRaw = partMap['quantity'] ?? 1;
+                                    final int partQty = (partQtyRaw is num) ? partQtyRaw.toInt() : (int.tryParse(partQtyRaw.toString()) ?? 1);
+
+                                    return Padding(
+                                      padding: const EdgeInsets.only(left: 12.0, top: 1.0),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            '- $partName',
+                                            style: const TextStyle(fontSize: 11, color: Colors.black54),
+                                          ),
+                                          Text(
+                                            'Qty: $partQty',
                                             style: const TextStyle(fontSize: 11, color: Colors.grey),
                                           ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                                Text(
-                                  'Qty: $quantity',
-                                  style: const TextStyle(fontSize: 13, color: Colors.grey),
-                                ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                                ],
                               ],
                             ),
                           );

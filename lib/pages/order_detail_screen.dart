@@ -51,15 +51,31 @@ class OrderDetailScreen extends StatelessWidget {
           final orderData = snapshot.data!.data() as Map<String, dynamic>;
           final items = orderData['items'] as List<dynamic>? ?? [];
 
+          // Extract pricing components
+          final dynamic rawSubtotal = orderData['subtotal'] ?? 0;
+          final num subtotal = (rawSubtotal is num)
+              ? rawSubtotal
+              : (num.tryParse(rawSubtotal.toString()) ?? 0);
+
+          final dynamic rawDelivery = orderData['deliveryFee'] ?? orderData['delivery'] ?? 0;
+          final num deliveryFee = (rawDelivery is num)
+              ? rawDelivery
+              : (num.tryParse(rawDelivery.toString()) ?? 0);
+
           final dynamic rawPrice =
               orderData['totalPrice'] ??
               orderData['total'] ??
               orderData['amount'] ??
               orderData['grandTotal'] ??
               0;
-          final num totalPrice = (rawPrice is num)
+          num totalPrice = (rawPrice is num)
               ? rawPrice
               : (num.tryParse(rawPrice.toString()) ?? 0);
+
+          // Fallback calculation if totalPrice wasn't explicitly saved but subtotal/delivery exist
+          if (totalPrice == 0 && (subtotal > 0 || deliveryFee > 0)) {
+            totalPrice = subtotal + deliveryFee;
+          }
 
           final status = orderData['status'] ?? 'Pending';
 
@@ -140,6 +156,7 @@ class OrderDetailScreen extends StatelessWidget {
                           : (int.tryParse(rawQty.toString()) ?? 1);
 
                       final String imageUrl = item['imageUrl'] ?? '';
+                      final List<dynamic> parts = item['parts'] is List ? item['parts'] : [];
 
                       return Card(
                         color: Colors.white,
@@ -150,6 +167,7 @@ class OrderDetailScreen extends StatelessWidget {
                         child: Padding(
                           padding: const EdgeInsets.all(10.0),
                           child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
@@ -216,9 +234,53 @@ class OrderDetailScreen extends StatelessWidget {
                                         fontSize: 13,
                                       ),
                                     ),
+                                    // Render selected parts list if present
+                                    if (parts.isNotEmpty) ...[
+                                      const SizedBox(height: 6),
+                                      ...parts.map((part) {
+                                        final partMap = part is Map ? part : {};
+                                        final String partName = partMap['partName'] ?? 'Part';
+                                        final dynamic partQtyRaw = partMap['quantity'] ?? 1;
+                                        final int partQty = (partQtyRaw is num)
+                                            ? partQtyRaw.toInt()
+                                            : (int.tryParse(partQtyRaw.toString()) ?? 1);
+                                        final dynamic partPriceRaw = partMap['price'] ?? 0;
+                                        final num partPrice = (partPriceRaw is num)
+                                            ? partPriceRaw
+                                            : (num.tryParse(partPriceRaw.toString()) ?? 0);
+
+                                        return Padding(
+                                          padding: const EdgeInsets.only(bottom: 2.0),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  '- $partName (x$partQty)',
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    color: Colors.black54,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              if (partPrice > 0)
+                                                Text(
+                                                  'PKR ${partPrice * partQty}',
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        );
+                                      }),
+                                    ],
                                   ],
                                 ),
                               ),
+                              const SizedBox(width: 8),
                               Text(
                                 'PKR ${itemPrice * quantity}',
                                 style: const TextStyle(
@@ -322,25 +384,60 @@ class OrderDetailScreen extends StatelessWidget {
                 const SizedBox(height: 12),
 
                 const Divider(),
+                // Pricing Breakdown Section
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Column(
                     children: [
-                      const Text(
-                        'Total Amount',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
+                      if (subtotal > 0) ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Subtotal',
+                              style: TextStyle(fontSize: 14, color: Colors.grey),
+                            ),
+                            Text(
+                              'PKR $subtotal',
+                              style: const TextStyle(fontSize: 14, color: Colors.black87),
+                            ),
+                          ],
                         ),
+                        const SizedBox(height: 4),
+                      ],
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Delivery Fee',
+                            style: TextStyle(fontSize: 14, color: Colors.grey),
+                          ),
+                          Text(
+                            deliveryFee > 0 ? 'PKR $deliveryFee' : 'Free',
+                            style: const TextStyle(fontSize: 14, color: Colors.black87),
+                          ),
+                        ],
                       ),
-                      Text(
-                        'PKR $totalPrice',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                          color: Colors.green,
-                        ),
+                      const Divider(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Total Amount',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                          Text(
+                            'PKR $totalPrice',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              color: Colors.green,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -378,6 +475,7 @@ class OrderDetailScreen extends StatelessWidget {
                               ? item['quantity'].toInt()
                               : (int.tryParse(item['quantity'].toString()) ??
                                     1);
+                          final List<dynamic> parts = item['parts'] is List ? item['parts'] : [];
 
                           final String sanitizedVariant = (variant != null && variant.isNotEmpty)
                               ? variant.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')
@@ -395,6 +493,7 @@ class OrderDetailScreen extends StatelessWidget {
                             'quantity': FieldValue.increment(itemQty),
                             'imageUrl': item['imageUrl'] ?? '',
                             'variant': variant,
+                            if (parts.isNotEmpty) 'parts': parts,
                             'updatedAt': FieldValue.serverTimestamp(),
                           }, SetOptions(merge: true));
                         }

@@ -34,7 +34,7 @@
 
       <div class="border-t border-gray-200 pt-3">
         <h3 class="text-sm font-semibold text-gray-700 mb-2">Items Purchased</h3>
-        <div id="items-list" class="space-y-2">
+        <div id="items-list" class="space-y-3">
           <!-- Dynamically injected items -->
         </div>
       </div>
@@ -124,11 +124,42 @@
             const itemName = item.name || 'Product';
             const itemQty = Number(item.quantity) || 1;
             const itemPrice = Number(item.price) || 0;
+            const variant = item.variant;
+            const parts = Array.isArray(item.parts) ? item.parts : [];
+
+            // Build parts HTML block if parts exist
+            let partsHtml = '';
+            if (parts.length > 0) {
+              partsHtml = '<div class="pl-4 mt-1 space-y-1 border-l-2 border-gray-200">';
+              parts.forEach(part => {
+                const partName = part.partName || 'Part';
+                const partQty = Number(part.quantity) || 1;
+                partsHtml += `
+                  <div class="flex justify-between text-xs text-gray-500">
+                    <span>- ${partName}</span>
+                    <span>Qty: ${partQty}</span>
+                  </div>
+                `;
+              });
+              partsHtml += '</div>';
+            }
+
+            // Build variant info block if variant exists
+            let variantHtml = '';
+            if (variant) {
+              variantHtml = `<p class="text-xs text-gray-400">Variant: ${variant}</p>`;
+            }
 
             itemsContainer.innerHTML += `
-              <div class="flex justify-between text-sm text-gray-600">
-                <span>${itemName} (x${itemQty})</span>
-                <span class="font-medium">PKR ${itemPrice * itemQty}</span>
+              <div class="border-b border-gray-100 pb-2">
+                <div class="flex justify-between text-sm text-gray-600">
+                  <div>
+                    <span class="font-medium text-gray-800">${itemName} (x${itemQty})</span>
+                    ${variantHtml}
+                  </div>
+                  <span class="font-medium">PKR ${itemPrice * itemQty}</span>
+                </div>
+                ${partsHtml}
               </div>
             `;
           });

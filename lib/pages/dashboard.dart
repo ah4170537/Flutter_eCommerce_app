@@ -728,6 +728,198 @@ Future<void> _showLogoutConfirmation(BuildContext context) async {
                   const BestSellingProductsSection(),
 
                   const SizedBox(height: 24),
+                  // --- COMPONENT / PARTS PRODUCTS SECTION ---
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Machine Components & Parts',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection(AppStrings.productsCollection)
+                        .where('category', isEqualTo: 'components')
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const SizedBox(
+                          height: 150,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: AppColors.primaryDark,
+                            ),
+                          ),
+                        );
+                      }
+
+                      if (snapshot.hasError) {
+                        return Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Text('Error: ${snapshot.error}'),
+                        );
+                      }
+
+                      final docs = snapshot.data?.docs ?? [];
+
+                      if (docs.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                        child: Column(
+                          children: List.generate(docs.length, (index) {
+                            final doc = docs[index];
+                            final data = doc.data() as Map<String, dynamic>;
+                            final String productId = doc.id;
+                            final String name = data[AppStrings.nameField] ?? 'Product';
+                            final String description = data['description'] ?? '';
+                            final num price = data[AppStrings.priceField] ?? 0;
+                            final List<dynamic> imageUrlsList = data['imageUrls'] ?? [];
+                            final String imageUrl = imageUrlsList.isNotEmpty ? imageUrlsList.first : '';
+                            
+                            // Check if it's the very first item to make it full width with a special style
+                            final bool isFirst = index == 0;
+
+                            return Container(
+                              width: double.infinity, // Full width coverage
+                              margin: const EdgeInsets.only(bottom: 16.0),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16.0),
+                                border: Border.all(
+                                  color: isFirst ? AppColors.primaryDark.withValues(alpha: 0.5) : Colors.grey.shade300,
+                                  width: isFirst ? 1.5 : 1.0,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16.0),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ProductDetailsScreen(
+                                        productId: productId,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Product Image
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(12.0),
+                                        child: CachedNetworkImage(
+                                          imageUrl: imageUrl,
+                                          width: isFirst ? 90 : 75,
+                                          height: isFirst ? 90 : 75,
+                                          fit: BoxFit.cover,
+                                          placeholder: (context, url) => Container(
+                                            color: AppColors.hintGrey,
+                                            child: const Center(
+                                              child: SizedBox(
+                                                width: 20,
+                                                height: 20,
+                                                child: CircularProgressIndicator(strokeWidth: 2),
+                                              ),
+                                            ),
+                                          ),
+                                          errorWidget: (context, url, error) => const Icon(Icons.image_not_supported),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      // Product Info
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: isFirst ? AppColors.primaryDark : Colors.grey.shade200,
+                                                    borderRadius: BorderRadius.circular(6),
+                                                  ),
+                                                  child: Text(
+                                                    isFirst ? 'Featured Assembly' : 'Part Unit',
+                                                    style: TextStyle(
+                                                      color: isFirst ? Colors.white : AppColors.textDark,
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              name,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                                color: AppColors.textDark,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              description,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: AppColors.textGrey,
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              '${AppStrings.currencyPrefix}$price',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                                color: AppColors.primaryDark,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 24),
                 ],
               ),
             ),

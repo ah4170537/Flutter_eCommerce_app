@@ -21,8 +21,7 @@ class ReceiptScreen extends StatelessWidget {
         ? userId!
         : (FirebaseAuth.instance.currentUser?.uid ?? '');
 
-
-final String receiptUrl = 'https://e-commerce-app-bfe73.web.app/?id=$orderId&uid=$effectiveUserId';
+    final String receiptUrl = 'https://e-commerce-app-bfe73.web.app/?id=$orderId&uid=$effectiveUserId';
 
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
@@ -161,6 +160,8 @@ final String receiptUrl = 'https://e-commerce-app-bfe73.web.app/?id=$orderId&uid
                           ? rawQty.toInt()
                           : (int.tryParse(rawQty.toString()) ?? 1);
 
+                      final List<dynamic> parts = item['parts'] is List ? item['parts'] : [];
+
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8.0),
                         child: Row(
@@ -196,6 +197,41 @@ final String receiptUrl = 'https://e-commerce-app-bfe73.web.app/?id=$orderId&uid
                                       fontSize: 12,
                                     ),
                                   ),
+                                  // Render selected parts list if present
+                                  if (parts.isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    ...parts.map((part) {
+                                      final partMap = part is Map ? part : {};
+                                      final String partName = partMap['partName'] ?? 'Part';
+                                      final dynamic partQtyRaw = partMap['quantity'] ?? 1;
+                                      final int partQty = (partQtyRaw is num)
+                                          ? partQtyRaw.toInt()
+                                          : (int.tryParse(partQtyRaw.toString()) ?? 1);
+
+                                      return Padding(
+                                        padding: const EdgeInsets.only(bottom: 2.0),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              '- $partName',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.black54,
+                                              ),
+                                            ),
+                                            Text(
+                                              'Qty: $partQty',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }),
+                                  ],
                                 ],
                               ),
                             ),

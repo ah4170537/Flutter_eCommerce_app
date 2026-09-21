@@ -2,10 +2,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'pages/login.dart';
 import 'pages/main_navigation_screen.dart';
-import 'services/auth_service.dart'; // Ensure you import your auth service for manualLogoutOccurred
+import 'services/auth_service.dart';
+import 'role_selection/role_selection_screen.dart';
+import 'rider_app/rider_home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,11 +18,26 @@ void main() async {
 
   await Firebase.initializeApp();
 
-  runApp(const MyApp());
+  // Check onboarding status and saved role prior to launching app
+  final prefs = await SharedPreferences.getInstance();
+  final bool hasCompletedOnboarding = prefs.getBool('hasCompletedOnboarding') ?? false;
+  final String? savedRole = prefs.getString('selectedRole');
+
+  Widget initialScreen;
+  if (!hasCompletedOnboarding) {
+    initialScreen = const RoleSelectionScreen();
+  } else if (savedRole == 'rider') {
+    initialScreen = const RiderHomeScreen();
+  } else {
+    initialScreen = const RootInitializer();
+  }
+
+  runApp(MyApp(initialScreen: initialScreen));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final Widget? initialScreen; // Make it optional
+  const MyApp({super.key, this.initialScreen});
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +47,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const RootInitializer(),
+      home: initialScreen ?? const RoleSelectionScreen(),
     );
   }
 }
@@ -52,7 +70,6 @@ class _RootInitializerState extends State<RootInitializer> {
   }
 
   Future<void> _initializeAppState() async {
-
     if (AuthService.manualLogoutOccurred) {
       return;
     }
@@ -71,7 +88,6 @@ class _RootInitializerState extends State<RootInitializer> {
     return FutureBuilder(
       future: _initFuture,
       builder: (context, snapshot) {
-        // Show a blank loading screen while the cold-start guest check finishes
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             backgroundColor: Colors.white,

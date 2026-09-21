@@ -32,6 +32,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   final ValueNotifier<String?> _selectedVariantNotifier =
       ValueNotifier<String?>(null);
 
+  // Use a ValueNotifier for part quantities to prevent full-page refreshes
+  final ValueNotifier<Map<String, int>> _partQuantitiesNotifier =
+      ValueNotifier<Map<String, int>>({});
+
   late final Stream<DocumentSnapshot> _productStream;
 
   // Unified loading notifier to lock all buttons when any action is running
@@ -50,6 +54,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   @override
   void dispose() {
     _selectedVariantNotifier.dispose();
+    _partQuantitiesNotifier.dispose();
     _isActionInProgress.dispose();
     super.dispose();
   }
@@ -62,7 +67,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       valueListenable: _isActionInProgress,
       builder: (context, isBusy, child) {
         return WillPopScope(
-          // Prevent back navigation while an async action is running
           onWillPop: () async => !isBusy,
           child: Scaffold(
             backgroundColor: AppColors.white,
@@ -89,19 +93,20 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                         );
                       }
 
-                      final data = snapshot.data!.data() as Map<String, dynamic>;
+                      final data =
+                          snapshot.data!.data() as Map<String, dynamic>;
 
                       final String name =
-                          data[AppStrings.nameField] ?? AppStrings.defaultProductName;
+                          data[AppStrings.nameField] ??
+                          AppStrings.defaultProductName;
 
-                      // Main/default product price.
                       final num productPrice = data[AppStrings.priceField] ?? 0;
 
-                      final List<dynamic> imageUrlsList = (data['imageUrls'] is List)
-                          ? data['imageUrls']
-                          : [];
+                      final List<dynamic> imageUrlsList =
+                          (data['imageUrls'] is List) ? data['imageUrls'] : [];
 
-                      final List<String> effectiveImages = imageUrlsList.isNotEmpty
+                      final List<String> effectiveImages =
+                          imageUrlsList.isNotEmpty
                           ? imageUrlsList.map((e) => e.toString()).toList()
                           : [data[AppStrings.imageUrlField]?.toString() ?? '']
                                 .where((s) => s.isNotEmpty)
@@ -113,9 +118,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
                       final String subCategory = data['subCategory'] ?? '';
 
-                      final List<dynamic> variantsDynamic = data['variants'] is List
-                          ? data['variants']
-                          : [];
+                      final List<dynamic> variantsDynamic =
+                          data['variants'] is List ? data['variants'] : [];
 
                       final List<Map<String, dynamic>> variants = [];
 
@@ -134,13 +138,40 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                             );
 
                         if (!currentVariantStillExists) {
-                          _selectedVariantNotifier.value = variants.first['name']
+                          _selectedVariantNotifier.value = variants
+                              .first['name']
                               ?.toString();
                         }
                       } else {
-                        // No variants available.
                         _selectedVariantNotifier.value = null;
                       }
+
+                      // Parse components/parts if available
+                      final List<dynamic> partsDynamic = data['parts'] is List
+                          ? data['parts']
+                          : [];
+
+                      final List<Map<String, dynamic>> parts = [];
+                      for (final part in partsDynamic) {
+                        if (part is Map) {
+                          final partMap = Map<String, dynamic>.from(part);
+                          parts.add(partMap);
+
+                          // Initialize part quantity to 0 if not already present
+                          final String partName = partMap['partName'] ?? 'Part';
+                          if (!_partQuantitiesNotifier.value.containsKey(
+                            partName,
+                          )) {
+                            final currentMap = Map<String, int>.from(
+                              _partQuantitiesNotifier.value,
+                            );
+                            currentMap[partName] = 0;
+                            _partQuantitiesNotifier.value = currentMap;
+                          }
+                        }
+                      }
+
+                      final bool hasPartsList = parts.isNotEmpty;
 
                       return CustomScrollView(
                         slivers: [
@@ -153,15 +184,18 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                             leading: Padding(
                               padding: const EdgeInsets.all(8.0),
                               child: CircleAvatar(
-                                backgroundColor: Colors.black.withValues(alpha: 0.4),
+                                backgroundColor: Colors.black.withValues(
+                                  alpha: 0.4,
+                                ),
                                 child: IconButton(
                                   icon: const Icon(
                                     Icons.arrow_back,
                                     color: Colors.white,
                                     size: 20,
                                   ),
-                                  // Disable back button during execution
-                                  onPressed: isBusy ? null : () => Navigator.pop(context),
+                                  onPressed: isBusy
+                                      ? null
+                                      : () => Navigator.pop(context),
                                 ),
                               ),
                             ),
@@ -172,12 +206,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                             ),
                           ),
 
-                          // -------------------------------------------------------
-                          // PRODUCT INFORMATION
-                          // -------------------------------------------------------
                           SliverToBoxAdapter(
                             child: Container(
-                              transform: Matrix4.translationValues(0.0, -20.0, 0.0),
+                              transform: Matrix4.translationValues(
+                                0.0,
+                                -20.0,
+                                0.0,
+                              ),
                               decoration: const BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.only(
@@ -190,50 +225,59 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Small handle
                                     Center(
                                       child: Container(
                                         width: 40,
                                         height: 4,
                                         decoration: BoxDecoration(
                                           color: Colors.grey.shade300,
-                                          borderRadius: BorderRadius.circular(10),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
                                         ),
                                       ),
                                     ),
 
                                     const SizedBox(height: 20),
 
-                                    // ------------------------------------------------
-                                    // PRODUCT NAME + PRICE
-                                    // ------------------------------------------------
                                     Row(
                                       mainAxisAlignment:
                                           MainAxisAlignment.spaceBetween,
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Expanded(
                                           child: Text(
                                             name,
-                                            style: AppTextStyles.brandTitle.copyWith(
-                                              fontSize: 22,
-                                              fontWeight: FontWeight.bold,
-                                              color: AppColors.primaryDark,
-                                            ),
+                                            style: AppTextStyles.brandTitle
+                                                .copyWith(
+                                                  fontSize: 22,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: AppColors.primaryDark,
+                                                ),
                                           ),
                                         ),
 
                                         ValueListenableBuilder<String?>(
-                                          valueListenable: _selectedVariantNotifier,
+                                          valueListenable:
+                                              _selectedVariantNotifier,
                                           builder:
-                                              (context, selectedVariantName, child) {
-                                                num displayedPrice = productPrice;
+                                              (
+                                                context,
+                                                selectedVariantName,
+                                                child,
+                                              ) {
+                                                num displayedPrice =
+                                                    productPrice;
 
-                                                if (selectedVariantName != null &&
+                                                if (selectedVariantName !=
+                                                        null &&
                                                     variants.isNotEmpty) {
                                                   final Map<String, dynamic>?
                                                   selectedVariant = variants
-                                                      .cast<Map<String, dynamic>?>()
+                                                      .cast<
+                                                        Map<String, dynamic>?
+                                                      >()
                                                       .firstWhere(
                                                         (variant) =>
                                                             variant?['name']
@@ -264,42 +308,12 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
                                     const SizedBox(height: 12),
 
-                                    // ------------------------------------------------
-                                    // REVIEWS
-                                    // ------------------------------------------------
                                     StreamBuilder<DocumentSnapshot>(
                                       stream: FirebaseFirestore.instance
                                           .collection('reviews')
                                           .doc(widget.productId)
                                           .snapshots(),
                                       builder: (context, reviewSnapshot) {
-                                        if (reviewSnapshot.connectionState ==
-                                            ConnectionState.waiting) {
-                                          return Row(
-                                            children: [
-                                              Icon(
-                                                Icons.star,
-                                                color: Colors.amber.withValues(
-                                                  alpha: 0.3,
-                                                ),
-                                                size: 18,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              SizedBox(
-                                                width: 60,
-                                                height: 12,
-                                                child: Container(
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.grey.shade200,
-                                                    borderRadius:
-                                                        BorderRadius.circular(4),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          );
-                                        }
-
                                         double avgRating = 0;
                                         int reviewCount = 0;
 
@@ -315,8 +329,11 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                           reviewCount = reviewsList.length;
 
                                           if (reviewCount > 0) {
-                                            final double totalRating = reviewsList
-                                                .fold(0.0, (sum, review) {
+                                            final double totalRating =
+                                                reviewsList.fold(0.0, (
+                                                  sum,
+                                                  review,
+                                                ) {
                                                   final r =
                                                       (review
                                                           as Map<
@@ -325,10 +342,12 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                                           >)['rating'] ??
                                                       0;
 
-                                                  return sum + (r as num).toDouble();
+                                                  return sum +
+                                                      (r as num).toDouble();
                                                 });
 
-                                            avgRating = totalRating / reviewCount;
+                                            avgRating =
+                                                totalRating / reviewCount;
                                           }
                                         }
 
@@ -362,12 +381,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                       },
                                     ),
 
-                                    // ------------------------------------------------
-                                    // VARIANT SELECTION
-                                    // ------------------------------------------------
                                     if (variants.isNotEmpty) ...[
                                       const SizedBox(height: 20),
-
                                       const Text(
                                         'Select Option / Variant',
                                         style: TextStyle(
@@ -376,19 +391,25 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                           color: AppColors.primaryDark,
                                         ),
                                       ),
-
                                       const SizedBox(height: 10),
-
                                       ValueListenableBuilder<String?>(
-                                        valueListenable: _selectedVariantNotifier,
+                                        valueListenable:
+                                            _selectedVariantNotifier,
                                         builder:
-                                            (context, currentSelectedVariant, child) {
+                                            (
+                                              context,
+                                              currentSelectedVariant,
+                                              child,
+                                            ) {
                                               return Wrap(
                                                 spacing: 8.0,
                                                 runSpacing: 4.0,
-                                                children: variants.map((variant) {
+                                                children: variants.map((
+                                                  variant,
+                                                ) {
                                                   final String variantName =
-                                                      variant['name']?.toString() ??
+                                                      variant['name']
+                                                          ?.toString() ??
                                                       '';
 
                                                   final bool isSelected =
@@ -403,21 +424,27 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                                     labelStyle: TextStyle(
                                                       color: isSelected
                                                           ? Colors.white
-                                                          : AppColors.primaryDark,
-                                                      fontWeight: FontWeight.w500,
+                                                          : AppColors
+                                                                .primaryDark,
+                                                      fontWeight:
+                                                          FontWeight.w500,
                                                     ),
                                                     backgroundColor:
                                                         Colors.grey.shade100,
                                                     shape: RoundedRectangleBorder(
                                                       borderRadius:
-                                                          BorderRadius.circular(8),
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
                                                       side: BorderSide(
                                                         color: isSelected
-                                                            ? AppColors.primaryDark
-                                                            : Colors.grey.shade300,
+                                                            ? AppColors
+                                                                  .primaryDark
+                                                            : Colors
+                                                                  .grey
+                                                                  .shade300,
                                                       ),
                                                     ),
-                                                    // Disable selection when busy
                                                     onSelected: isBusy
                                                         ? null
                                                         : (selected) {
@@ -434,11 +461,201 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                       ),
                                     ],
 
-                                    const SizedBox(height: 24),
+                                    // COMPONENTS & PARTS LIST WITH VALUE NOTIFIER
+                                    if (hasPartsList) ...[
+                                      const SizedBox(height: 20),
+                                      const Text(
+                                        'Components & Parts Included',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.primaryDark,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      ValueListenableBuilder<Map<String, int>>(
+                                        valueListenable:
+                                            _partQuantitiesNotifier,
+                                        builder: (context, partQuantities, child) {
+                                          return ListView.builder(
+                                            shrinkWrap: true,
+                                            physics:
+                                                const NeverScrollableScrollPhysics(),
+                                            itemCount: parts.length,
+                                            itemBuilder: (context, index) {
+                                              final part = parts[index];
+                                              final String partName =
+                                                  part['partName'] ?? 'Part';
+                                              final String specs =
+                                                  part['specs'] ?? '';
+                                              final num partPrice =
+                                                  part['price'] ?? 0;
+                                              final int currentPartQty =
+                                                  partQuantities[partName] ?? 0;
 
-                                    // ------------------------------------------------
-                                    // DESCRIPTION
-                                    // ------------------------------------------------
+                                              return Container(
+                                                margin: const EdgeInsets.only(
+                                                  bottom: 8.0,
+                                                ),
+                                                padding: const EdgeInsets.all(
+                                                  12.0,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey.shade50,
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                  border: Border.all(
+                                                    color: Colors.grey.shade200,
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment
+                                                          .spaceBetween,
+                                                  children: [
+                                                    Expanded(
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          Text(
+                                                            partName,
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                  fontSize: 14,
+                                                                  color: AppColors
+                                                                      .textDark,
+                                                                ),
+                                                          ),
+                                                          if (specs
+                                                              .isNotEmpty) ...[
+                                                            const SizedBox(
+                                                              height: 2,
+                                                            ),
+                                                            Text(
+                                                              specs,
+                                                              style: const TextStyle(
+                                                                fontSize: 12,
+                                                                color: AppColors
+                                                                    .textGrey,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                          const SizedBox(
+                                                            height: 4,
+                                                          ),
+                                                          Text(
+                                                            'PKR $partPrice each',
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontSize: 12,
+                                                                  color: Colors
+                                                                      .green,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    Row(
+                                                      children: [
+                                                        IconButton(
+                                                          icon: const Icon(
+                                                            Icons
+                                                                .remove_circle_outline,
+                                                            size: 20,
+                                                          ),
+                                                          color: AppColors
+                                                              .primaryDark,
+                                                          onPressed:
+                                                              isBusy ||
+                                                                  currentPartQty <=
+                                                                      0
+                                                              ? null
+                                                              : () {
+                                                                  final updatedMap =
+                                                                      Map<
+                                                                        String,
+                                                                        int
+                                                                      >.from(
+                                                                        _partQuantitiesNotifier
+                                                                            .value,
+                                                                      );
+                                                                  updatedMap[partName] =
+                                                                      currentPartQty -
+                                                                      1;
+                                                                  _partQuantitiesNotifier
+                                                                          .value =
+                                                                      updatedMap;
+                                                                },
+                                                        ),
+                                                        Text(
+                                                          '$currentPartQty',
+                                                          style:
+                                                              const TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 14,
+                                                              ),
+                                                        ),
+                                                        IconButton(
+                                                          icon: const Icon(
+                                                            Icons
+                                                                .add_circle_outline,
+                                                            size: 20,
+                                                          ),
+                                                          color: AppColors
+                                                              .primaryDark,
+                                                          onPressed: isBusy
+                                                              ? null
+                                                              : () {
+                                                                  final updatedMap =
+                                                                      Map<
+                                                                        String,
+                                                                        int
+                                                                      >.from(
+                                                                        _partQuantitiesNotifier
+                                                                            .value,
+                                                                      );
+                                                                  updatedMap[partName] =
+                                                                      currentPartQty +
+                                                                      1;
+                                                                  _partQuantitiesNotifier
+                                                                          .value =
+                                                                      updatedMap;
+                                                                },
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            },
+                                          );
+                                        },
+                                      ),
+                                    ],
+
+                                    if (!hasPartsList) ...[
+                                      const SizedBox(height: 20),
+                                      QuantitySelector(
+                                        initialQuantity: _selectedQuantity,
+                                        onChanged: (newQty) {
+                                          setState(() {
+                                            _selectedQuantity = newQty;
+                                          });
+                                        },
+                                      ),
+                                    ],
+
+                                    const SizedBox(height: 24),
                                     const Text(
                                       'Description',
                                       style: TextStyle(
@@ -447,9 +664,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                         color: AppColors.primaryDark,
                                       ),
                                     ),
-
                                     const SizedBox(height: 8),
-
                                     Text(
                                       description,
                                       style: const TextStyle(
@@ -458,36 +673,14 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                         height: 1.5,
                                       ),
                                     ),
-
                                     const SizedBox(height: 24),
 
-                                    // ------------------------------------------------
-                                    // QUANTITY
-                                    // ------------------------------------------------
-                                    QuantitySelector(
-                                      initialQuantity: _selectedQuantity,
-                                      onChanged: (newQuantity) {
-                                        if (!isBusy) {
-                                          _selectedQuantity = newQuantity;
-                                        }
-                                      },
-                                    ),
-
-                                    const SizedBox(height: 24),
-
-                                    // ------------------------------------------------
-                                    // RECOMMENDED PRODUCTS
-                                    // ------------------------------------------------
                                     RecommendedProductsSection(
                                       subCategory: subCategory,
                                       currentProductId: widget.productId,
                                     ),
-
                                     const SizedBox(height: 24),
 
-                                    // ------------------------------------------------
-                                    // REVIEWS TITLE
-                                    // ------------------------------------------------
                                     Row(
                                       mainAxisAlignment:
                                           MainAxisAlignment.spaceBetween,
@@ -501,17 +694,19 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                           ),
                                         ),
                                         TextButton.icon(
-                                          // Disable write review trigger when busy
                                           onPressed: isBusy
                                               ? null
                                               : () => showModalBottomSheet(
-                                                    context: context,
-                                                    isScrollControlled: true,
-                                                    backgroundColor: Colors.transparent,
-                                                    builder: (_) => WriteReviewSheet(
-                                                      productId: widget.productId,
-                                                    ),
-                                                  ),
+                                                  context: context,
+                                                  isScrollControlled: true,
+                                                  backgroundColor:
+                                                      Colors.transparent,
+                                                  builder: (_) =>
+                                                      WriteReviewSheet(
+                                                        productId:
+                                                            widget.productId,
+                                                      ),
+                                                ),
                                           icon: const Icon(
                                             Icons.rate_review_outlined,
                                             size: 18,
@@ -520,9 +715,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                         ),
                                       ],
                                     ),
-
                                     const SizedBox(height: 8),
-
                                     ProductReviewsSection(
                                       productId: widget.productId,
                                     ),
@@ -536,9 +729,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                     },
                   ),
 
-                  // ---------------------------------------------------------------
-                  // FLOATING CART BUTTON
-                  // ---------------------------------------------------------------
                   Positioned(
                     top: 12,
                     right: 16,
@@ -597,7 +787,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                   ),
                               ],
                             ),
-                            // Disable cart button access when an action is in progress
                             onPressed: isBusy
                                 ? null
                                 : () {
@@ -605,9 +794,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
-                                          builder: (_) => CartScreen(
-                                            userId: currentUserId,
-                                          ),
+                                          builder: (_) =>
+                                              CartScreen(userId: currentUserId),
                                         ),
                                       );
                                     }
@@ -621,9 +809,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               ),
             ),
 
-            // ---------------------------------------------------------------
-            // ADD TO CART BUTTON
-            // ---------------------------------------------------------------
             bottomNavigationBar: SafeArea(
               child: Container(
                 padding: const EdgeInsets.all(16.0),
@@ -644,7 +829,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                           _isActionInProgress.value = true;
 
                           try {
-                            final User? user = FirebaseAuth.instance.currentUser;
+                            final User? user =
+                                FirebaseAuth.instance.currentUser;
                             final String userId = user?.uid ?? '';
 
                             if (userId.isEmpty) {
@@ -670,18 +856,79 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                             final data =
                                 docSnapshot.data() as Map<String, dynamic>;
 
+                            final List<dynamic> partsDynamic =
+                                data['parts'] is List ? data['parts'] : [];
+                            final bool hasPartsList = partsDynamic.isNotEmpty;
+
+                            final List<Map<String, dynamic>> finalPartsList =
+                                [];
+                            if (hasPartsList) {
+                              for (final part in partsDynamic) {
+                                if (part is Map) {
+                                  final partMap = Map<String, dynamic>.from(
+                                    part,
+                                  );
+                                  final String partName =
+                                      partMap['partName'] ?? 'Part';
+                                  final int partQty =
+                                      _partQuantitiesNotifier.value[partName] ??
+                                      0;
+
+                                  // Only include parts with quantity greater than 0
+                                  if (partQty > 0) {
+                                    finalPartsList.add({
+                                      'partName': partName,
+                                      'specs': partMap['specs'] ?? '',
+                                      'price': partMap['price'] ?? 0,
+                                      'quantity': partQty,
+                                    });
+                                  }
+                                }
+                              }
+                            }
+
+                            // -------------------------------------------------------------
+                            // VALIDATION CHECK FOR PARTS
+                            // -------------------------------------------------------------
+                            if (hasPartsList && finalPartsList.isEmpty) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Please select at least one part or component.',
+                                    ),
+                                    backgroundColor: Colors.red,
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
+                              _isActionInProgress.value = false;
+                              return;
+                            }
+                            // -------------------------------------------------------------
+
+                            final cartDocRef = FirebaseFirestore.instance
+                                .collection('cart')
+                                .doc(userId)
+                                .collection('user_cart')
+                                .doc(widget.productId);
+
                             final List<dynamic> imageUrlsList =
                                 data['imageUrls'] ?? [];
 
                             final List<String> effectiveImages =
                                 imageUrlsList.isNotEmpty
-                                ? imageUrlsList.map((e) => e.toString()).toList()
+                                ? imageUrlsList
+                                      .map((e) => e.toString())
+                                      .toList()
                                 : [
-                                    data[AppStrings.imageUrlField]?.toString() ??
+                                    data[AppStrings.imageUrlField]
+                                            ?.toString() ??
                                         '',
                                   ].where((s) => s.isNotEmpty).toList();
 
-                            final String cartImageUrl = effectiveImages.isNotEmpty
+                            final String cartImageUrl =
+                                effectiveImages.isNotEmpty
                                 ? effectiveImages[0]
                                 : '';
 
@@ -692,7 +939,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                 data[AppStrings.priceField] ?? 0;
 
                             final List<dynamic> variantsDynamic =
-                                data['variants'] is List ? data['variants'] : [];
+                                data['variants'] is List
+                                ? data['variants']
+                                : [];
 
                             for (final variant in variantsDynamic) {
                               if (variant is Map) {
@@ -706,17 +955,18 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                               }
                             }
 
-                            await _cartService.addToCart(
-                              userId: userId,
-                              productId: widget.productId,
-                              name:
+                            await cartDocRef.set({
+                              'productId': widget.productId,
+                              'name':
                                   data[AppStrings.nameField] ??
                                   AppStrings.defaultProductName,
-                              price: selectedVariantPrice,
-                              imageUrl: cartImageUrl,
-                              quantity: _selectedQuantity,
-                              variant: chosenVariant,
-                            );
+                              'price': selectedVariantPrice,
+                              'imageUrl': cartImageUrl,
+                              'quantity': hasPartsList ? 1 : _selectedQuantity,
+                              'variant': chosenVariant,
+                              if (hasPartsList) 'parts': finalPartsList,
+                              'updatedAt': FieldValue.serverTimestamp(),
+                            }, SetOptions(merge: true));
 
                             if (!mounted) return;
 

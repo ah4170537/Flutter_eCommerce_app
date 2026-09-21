@@ -270,6 +270,71 @@ void main() async {
         'assets/products/black_watch2.jpg',
       ],
     },
+
+    // --- COMPONENT / PARTS-BASED PRODUCTS (Shown Separately) ---
+    {
+      'id': 'prod-101',
+      'name': 'Pro Workstation Laptop',
+      'description': 'High-end machine modular assembly breakdown structure.',
+      'price': 220000,
+      'category': 'components', // Category used to separate them
+      'subCategory': 'machine_assembly',
+      'variants': [
+        {'name': 'Base Build', 'price': 220000},
+      ],
+      'parts': [
+        {'partName': 'Memory (RAM)', 'specs': '32GB DDR5', 'price': 25000},
+        {'partName': 'Storage (ROM)', 'specs': '1TB NVMe SSD', 'price': 30000},
+        {'partName': 'Display Panel', 'specs': '15.6 inch 4K OLED', 'price': 45000},
+      ],
+      'imagePaths': [
+        'assets/products/laptop.png',
+        'assets/products/laptop1.png',
+        'assets/products/laptop2.png',
+      ],
+    },
+    {
+      'id': 'prod-102',
+      'name': 'Flagship Smartphone Unit',
+      'description': 'Modular smartphone hardware breakdown components.',
+      'price': 140000,
+      'category': 'components',
+      'subCategory': 'machine_assembly',
+      'variants': [
+        {'name': 'Standard Unit', 'price': 140000},
+      ],
+      'parts': [
+        {'partName': 'Battery Module', 'specs': '5000mAh Li-Po', 'price': 8000},
+        {'partName': 'Main Camera Module', 'specs': '108MP Primary Sensor', 'price': 22000},
+        {'partName': 'Screen Glass Assembly', 'specs': '6.7 inch AMOLED 120Hz', 'price': 35000},
+      ],
+      'imagePaths': [
+        'assets/products/smartwatch.jpg',
+        'assets/products/smartwatch1.jpg',
+        'assets/products/smartwatch2.jpg',
+      ],
+    },
+    {
+      'id': 'prod-103',
+      'name': 'Heavy Machinery Engine Unit',
+      'description': 'Industrial mechanical build components and replacement parts.',
+      'price': 450000,
+      'category': 'components',
+      'subCategory': 'machine_assembly',
+      'variants': [
+        {'name': 'Full Assembly', 'price': 450000},
+      ],
+      'parts': [
+        {'partName': 'Engine Block Assembly', 'specs': 'V6 Core Block', 'price': 180000},
+        {'partName': 'Braking System', 'specs': 'Hydraulic Disc Calipers', 'price': 45000},
+        {'partName': 'Transmission Chain/Belt', 'specs': 'Heavy Duty Steel', 'price': 25000},
+      ],
+      'imagePaths': [
+        'assets/products/camera.jpg',
+        'assets/products/camera1.jpg',
+        'assets/products/camera2.jpg',
+      ],
+    },
   ];
 
   final WriteBatch batch = firestore.batch();
@@ -289,7 +354,10 @@ void main() async {
     final String newSubCategory = product['subCategory'];
     
     final List<Map<String, dynamic>> newVariants = 
-        List<Map<String, dynamic>>.from(product['variants']);
+        List<Map<String, dynamic>>.from(product['variants'] ?? []);
+        
+    final List<Map<String, dynamic>> newParts = 
+        product.containsKey('parts') ? List<Map<String, dynamic>>.from(product['parts']) : [];
 
     if (!docSnapshot.exists) {
       // --- CREATE NEW PRODUCT ---
@@ -300,7 +368,7 @@ void main() async {
         if (url != null) uploadedUrls.add(url);
       }
 
-      batch.set(docRef, {
+      Map<String, dynamic> productData = {
         'id': docId,
         'name': newName,
         'description': newDescription,
@@ -312,7 +380,13 @@ void main() async {
         'localImagePaths': currentImagePaths,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      };
+
+      if (newParts.isNotEmpty) {
+        productData['parts'] = newParts;
+      }
+
+      batch.set(docRef, productData);
       addedCount++;
     } else {
       // --- CHECK FOR UPDATES ---
@@ -328,13 +402,18 @@ void main() async {
       final List<Map<String, dynamic>> existingVariants = existingVariantsDynamic
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
+
+      final List<dynamic> existingPartsDynamic = data['parts'] ?? [];
+      final List<Map<String, dynamic>> existingParts = existingPartsDynamic
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
       
       final List<dynamic> existingLocalPaths = data['localImagePaths'] ?? [];
       
       bool imagesChanged = existingLocalPaths.length != currentImagePaths.length ||
           !List.generate(existingLocalPaths.length, (i) => existingLocalPaths[i] == currentImagePaths[i]).every((e) => e);
 
-      // Deep comparison for variant name and price changes
+      // Deep comparison for variant changes
       bool variantsChanged = existingVariants.length != newVariants.length;
       if (!variantsChanged) {
         for (int i = 0; i < existingVariants.length; i++) {
@@ -346,12 +425,26 @@ void main() async {
         }
       }
 
+      // Deep comparison for parts changes
+      bool partsChanged = existingParts.length != newParts.length;
+      if (!partsChanged) {
+        for (int i = 0; i < existingParts.length; i++) {
+          if (existingParts[i]['partName'] != newParts[i]['partName'] ||
+              existingParts[i]['specs'] != newParts[i]['specs'] ||
+              existingParts[i]['price'] != newParts[i]['price']) {
+            partsChanged = true;
+            break;
+          }
+        }
+      }
+
       bool fieldsChanged = existingName != newName ||
           existingDescription != newDescription ||
           existingPrice != newPrice ||
           existingCategory != newCategory ||
           existingSubCategory != newSubCategory ||
-          variantsChanged;
+          variantsChanged ||
+          partsChanged;
 
       if (fieldsChanged || imagesChanged) {
         print('Changes detected for "$newName" (ID: $docId). Updating...');
@@ -367,7 +460,7 @@ void main() async {
           finalImageUrls = List<String>.from(data['imageUrls'] ?? []);
         }
 
-        batch.update(docRef, {
+        Map<String, dynamic> updateData = {
           'name': newName,
           'description': newDescription,
           'price': newPrice,
@@ -377,7 +470,13 @@ void main() async {
           'imageUrls': finalImageUrls,
           'localImagePaths': currentImagePaths,
           'updatedAt': FieldValue.serverTimestamp(),
-        });
+        };
+
+        if (newParts.isNotEmpty) {
+          updateData['parts'] = newParts;
+        }
+
+        batch.update(docRef, updateData);
         updatedCount++;
       } else {
         print('No changes for "$newName" (ID: $docId). Skipping.');
