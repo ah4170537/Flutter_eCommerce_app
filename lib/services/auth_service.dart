@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:http/http.dart' as http;
 
 class AuthService {
@@ -23,6 +24,29 @@ class AuthService {
   static const String _emailJsServiceId = 'service_3a778zs';
   static const String _emailJsTemplateId = 'template_n4ykzgf';
   static const String _emailJsPublicKey = 'xLJyWo6CV8LvFq26t';
+
+  /// Helper to request FCM permissions and save the token to the user document
+  Future<void> saveFCMToken(String userId) async {
+    try {
+      FirebaseMessaging messaging = FirebaseMessaging.instance;
+      NotificationSettings settings = await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+        String? token = await messaging.getToken();
+        if (token != null) {
+          await _firestore.collection('users').doc(userId).set({
+            'fcmToken': token,
+          }, SetOptions(merge: true));
+        }
+      }
+    } catch (e) {
+      // Handle or log token error safely
+    }
+  }
 
   Future<UserCredential> signUp({
     required String name,
@@ -68,6 +92,9 @@ class AuthService {
               },
           });
         } catch (_) {}
+
+        // Save FCM token on sign up
+        await saveFCMToken(credential.user!.uid);
       }
 
       return credential;
@@ -82,10 +109,17 @@ class AuthService {
   }) async {
     isAuthTransitionInProgress = true;
     try {
-      return await _auth.signInWithEmailAndPassword(
+      final credential = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
+
+      if (credential.user != null) {
+        // Save/refresh FCM token on sign in
+        await saveFCMToken(credential.user!.uid);
+      }
+
+      return credential;
     } finally {
       isAuthTransitionInProgress = false;
     }

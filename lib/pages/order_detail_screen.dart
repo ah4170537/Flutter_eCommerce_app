@@ -7,6 +7,7 @@ import '../widgets/cancel_order_button.dart';
 import "order_progress_screen.dart";
 import 'main_navigation_screen.dart';
 import 'receipt_screen.dart'; // Import ReceiptScreen
+import 'live_tracking_screen.dart';
 
 class OrderDetailScreen extends StatelessWidget {
   final String orderId;
@@ -57,7 +58,8 @@ class OrderDetailScreen extends StatelessWidget {
               ? rawSubtotal
               : (num.tryParse(rawSubtotal.toString()) ?? 0);
 
-          final dynamic rawDelivery = orderData['deliveryFee'] ?? orderData['delivery'] ?? 0;
+          final dynamic rawDelivery =
+              orderData['deliveryFee'] ?? orderData['delivery'] ?? 0;
           final num deliveryFee = (rawDelivery is num)
               ? rawDelivery
               : (num.tryParse(rawDelivery.toString()) ?? 0);
@@ -156,7 +158,9 @@ class OrderDetailScreen extends StatelessWidget {
                           : (int.tryParse(rawQty.toString()) ?? 1);
 
                       final String imageUrl = item['imageUrl'] ?? '';
-                      final List<dynamic> parts = item['parts'] is List ? item['parts'] : [];
+                      final List<dynamic> parts = item['parts'] is List
+                          ? item['parts']
+                          : [];
 
                       return Card(
                         color: Colors.white,
@@ -215,7 +219,8 @@ class OrderDetailScreen extends StatelessWidget {
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                     ),
-                                    if (variant != null && variant.isNotEmpty) ...[
+                                    if (variant != null &&
+                                        variant.isNotEmpty) ...[
                                       const SizedBox(height: 2),
                                       Text(
                                         'Variant: $variant',
@@ -239,20 +244,33 @@ class OrderDetailScreen extends StatelessWidget {
                                       const SizedBox(height: 6),
                                       ...parts.map((part) {
                                         final partMap = part is Map ? part : {};
-                                        final String partName = partMap['partName'] ?? 'Part';
-                                        final dynamic partQtyRaw = partMap['quantity'] ?? 1;
+                                        final String partName =
+                                            partMap['partName'] ?? 'Part';
+                                        final dynamic partQtyRaw =
+                                            partMap['quantity'] ?? 1;
                                         final int partQty = (partQtyRaw is num)
                                             ? partQtyRaw.toInt()
-                                            : (int.tryParse(partQtyRaw.toString()) ?? 1);
-                                        final dynamic partPriceRaw = partMap['price'] ?? 0;
-                                        final num partPrice = (partPriceRaw is num)
+                                            : (int.tryParse(
+                                                    partQtyRaw.toString(),
+                                                  ) ??
+                                                  1);
+                                        final dynamic partPriceRaw =
+                                            partMap['price'] ?? 0;
+                                        final num partPrice =
+                                            (partPriceRaw is num)
                                             ? partPriceRaw
-                                            : (num.tryParse(partPriceRaw.toString()) ?? 0);
+                                            : (num.tryParse(
+                                                    partPriceRaw.toString(),
+                                                  ) ??
+                                                  0);
 
                                         return Padding(
-                                          padding: const EdgeInsets.only(bottom: 2.0),
+                                          padding: const EdgeInsets.only(
+                                            bottom: 2.0,
+                                          ),
                                           child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
                                             children: [
                                               Expanded(
                                                 child: Text(
@@ -261,7 +279,8 @@ class OrderDetailScreen extends StatelessWidget {
                                                     fontSize: 11,
                                                     color: Colors.black54,
                                                   ),
-                                                  overflow: TextOverflow.ellipsis,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                 ),
                                               ),
                                               if (partPrice > 0)
@@ -317,9 +336,8 @@ class OrderDetailScreen extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => OrderProgressScreen(
-                            initialOrderId: orderId,
-                          ),
+                          builder: (context) =>
+                              OrderProgressScreen(initialOrderId: orderId),
                         ),
                       );
                     },
@@ -344,6 +362,58 @@ class OrderDetailScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
+
+                if (status.toString().toLowerCase() == 'out for delivery') ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        final dynamic lat = orderData['latitude'];
+                        final dynamic lng = orderData['longitude'];
+
+                        if (lat == null || lng == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Delivery location not available for tracking.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => LiveTrackingScreen(
+                              userId: effectiveUserId,
+                              orderId: orderId,
+                              destinationLatitude: (lat as num).toDouble(),
+                              destinationLongitude: (lng as num).toDouble(),
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.location_on, color: Colors.white),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryDark,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      label: const Text(
+                        'Track Rider Live',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
 
                 // ── View Receipt Button ────────────────────────
                 SizedBox(
@@ -395,11 +465,17 @@ class OrderDetailScreen extends StatelessWidget {
                           children: [
                             const Text(
                               'Subtotal',
-                              style: TextStyle(fontSize: 14, color: Colors.grey),
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
                             ),
                             Text(
                               'PKR $subtotal',
-                              style: const TextStyle(fontSize: 14, color: Colors.black87),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.black87,
+                              ),
                             ),
                           ],
                         ),
@@ -414,7 +490,10 @@ class OrderDetailScreen extends StatelessWidget {
                           ),
                           Text(
                             deliveryFee > 0 ? 'PKR $deliveryFee' : 'Free',
-                            style: const TextStyle(fontSize: 14, color: Colors.black87),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.black87,
+                            ),
                           ),
                         ],
                       ),
@@ -475,9 +554,12 @@ class OrderDetailScreen extends StatelessWidget {
                               ? item['quantity'].toInt()
                               : (int.tryParse(item['quantity'].toString()) ??
                                     1);
-                          final List<dynamic> parts = item['parts'] is List ? item['parts'] : [];
+                          final List<dynamic> parts = item['parts'] is List
+                              ? item['parts']
+                              : [];
 
-                          final String sanitizedVariant = (variant != null && variant.isNotEmpty)
+                          final String sanitizedVariant =
+                              (variant != null && variant.isNotEmpty)
                               ? variant.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')
                               : 'default';
                           final String cartDocId = productId.isNotEmpty

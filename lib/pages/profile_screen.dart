@@ -5,10 +5,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/cloudinary_service.dart';
 import '../theme/app_colors.dart';
 import 'edit_profile_screen.dart';
+import '../role_selection/role_selection_screen.dart'; 
 
 class ProfileScreen extends StatefulWidget {
   final String userId;
@@ -103,6 +105,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (updated == true) {
       _loadUserProfile();
+    }
+  }
+
+  // Fungsi untuk membersihkan cache dan menukar peranan
+  Future<void> _switchRole() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear(); // Mengosongkan cache/SharedPreferences[cite: 5]
+
+      if (!mounted) return;
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const RoleSelectionScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      debugPrint('Error switching role: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menukar peranan: $e'),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -317,7 +344,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row with Title and single Edit Button
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -351,8 +377,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           const SizedBox(height: 16),
-
-          // Personal Info Section Header
           const Text(
             'Personal Details',
             style: TextStyle(
@@ -366,10 +390,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _buildInfoRow(_InfoRow(Icons.email_outlined, 'Email', _email)),
           _buildInfoRow(_InfoRow(Icons.phone_outlined, 'Primary Phone', _phone)),
           _buildInfoRow(_InfoRow(Icons.phone_android_outlined, 'Secondary Phone', _secondaryPhone)),
-
-          
-const SizedBox(height: 10),
-          // Shipping Address Section Header
+          const SizedBox(height: 10),
           const Text(
             'Shipping Address',
             style: TextStyle(
@@ -474,8 +495,30 @@ const SizedBox(height: 10),
                       ),
                     ),
                     const SizedBox(height: 24),
-                    // Single unified box containing both sections & one edit button
                     _buildUnifiedDetailsCard(),
+                    const SizedBox(height: 16),
+                    
+                    // BUTANG TUKAR PERANAN (SWITCH ROLE) DI TAMBAH DI SINI
+                    ElevatedButton.icon(
+                      onPressed: _switchRole,
+                      icon: const Icon(Icons.swap_horiz, color: Colors.white),
+                      label: const Text(
+                        'Switch App / Role',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryDark,
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                    ),
                     const SizedBox(height: 24),
                   ],
                 ),
